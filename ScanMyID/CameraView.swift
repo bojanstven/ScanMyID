@@ -67,21 +67,50 @@ struct CameraPreview: UIViewRepresentable {
         let view = UIView()
         view.backgroundColor = .black
         
+        // Start camera setup immediately but properly
         setupCamera(view: view, context: context)
         
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Update preview layer frame when view size changes
-        DispatchQueue.main.async {
-            context.coordinator.previewLayer?.frame = uiView.bounds
+        // Ensure preview layer frame is updated when view bounds change
+        if let previewLayer = context.coordinator.previewLayer {
+            DispatchQueue.main.async {
+                // Only update if bounds have actually changed
+                if !previewLayer.frame.equalTo(uiView.bounds) {
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    previewLayer.frame = uiView.bounds
+                    CATransaction.commit()
+                }
+            }
         }
     }
     
     private func setupCamera(view: UIView, context: Context) {
-        // Simple: just get the default back camera
-        guard let camera = AVCaptureDevice.default(for: .video) else {
+        // Check camera permission first
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureCameraSession(view: view, context: context)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted {
+                    DispatchQueue.main.async {
+                        self.configureCameraSession(view: view, context: context)
+                    }
+                }
+            }
+        default:
+            print("❌ Camera access denied")
+            return
+        }
+    }
+    
+    private func configureCameraSession(view: UIView, context: Context) {
+        // Get the best back camera available
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) ??
+                          AVCaptureDevice.default(for: .video) else {
             print("❌ No camera found")
             return
         }
@@ -89,49 +118,78 @@ struct CameraPreview: UIViewRepresentable {
         print("✅ Using camera: \(camera.localizedName)")
         
         let session = AVCaptureSession()
-        session.sessionPreset = .photo // Highest quality for accurate OCR
         
-        // Create input
-        guard let input = try? AVCaptureDeviceInput(device: camera),
-              session.canAddInput(input) else {
-            print("❌ Cannot create camera input")
-            return
+        // Use highest quality for best OCR results
+        session.sessionPreset = .photo
+        
+        do {
+            // Create and add input
+            let input = try AVCaptureDeviceInput(device: camera)
+            if session.canAddInput(input) {
+                session.addInput(input)
+            } else {
+                print("❌ Cannot add camera input")
+                return
+            }
+            
+            // Create and configure output
+            let output = AVCaptureVideoDataOutput()
+            output.alwaysDiscardsLateVideoFrames = true
+            output.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue(label: "camera.processing", qos: .userInitiated))
+            
+            if session.canAddOutput(output) {
+                session.addOutput(output)
+            } else {
+                print("❌ Cannot add camera output")
+                return
+            }
+            
+            // Store session in coordinator FIRST
+            context.coordinator.session = session
+            
+            // Create preview layer and configure it properly
+            let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+            previewLayer.videoGravity = .resizeAspectFill
+            
+            // Store preview layer in coordinator
+            context.coordinator.previewLayer = previewLayer
+            
+            // Add preview layer to view on main thread
+            DispatchQueue.main.async {
+                // Ensure view still exists and has proper bounds
+                guard view.bounds.width > 0 && view.bounds.height > 0 else {
+                    // Wait a bit and try again if view isn't ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.addPreviewLayerToView(view: view, previewLayer: previewLayer)
+                    }
+                    return
+                }
+                
+                self.addPreviewLayerToView(view: view, previewLayer: previewLayer)
+            }
+            
+            // Start session on background thread
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.startRunning()
+                DispatchQueue.main.async {
+                    print("✅ Camera session started")
+                }
+            }
+            
+        } catch {
+            print("❌ Camera setup error: \(error)")
         }
-        session.addInput(input)
+    }
+    
+    private func addPreviewLayerToView(view: UIView, previewLayer: AVCaptureVideoPreviewLayer) {
+        // Remove any existing preview layers first
+        view.layer.sublayers?.removeAll { $0 is AVCaptureVideoPreviewLayer }
         
-        // Create output with iOS 16 compatibility
-        let output = AVCaptureVideoDataOutput()
-        
-        // Better settings for older devices
-        if #available(iOS 17.0, *) {
-            output.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue(label: "camera"))
-        } else {
-            // iOS 16 - use lower priority queue to prevent overload
-            let queue = DispatchQueue(label: "camera", qos: .userInitiated)
-            output.setSampleBufferDelegate(context.coordinator, queue: queue)
-        }
-        
-        guard session.canAddOutput(output) else {
-            print("❌ Cannot add camera output")
-            return
-        }
-        session.addOutput(output)
-        
-        // Create preview layer
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.videoGravity = .resizeAspectFill
+        // Set frame and add to view
         previewLayer.frame = view.bounds
-        view.layer.addSublayer(previewLayer)
+        view.layer.insertSublayer(previewLayer, at: 0)
         
-        // Store in coordinator
-        context.coordinator.session = session
-        context.coordinator.previewLayer = previewLayer
-        
-        // Start session
-        DispatchQueue.global().async {
-            session.startRunning()
-            print("✅ Camera started")
-        }
+        print("✅ Preview layer added with frame: \(previewLayer.frame)")
     }
     
     func makeCoordinator() -> Coordinator {
@@ -139,9 +197,10 @@ struct CameraPreview: UIViewRepresentable {
     }
     
     static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        // Clean shutdown
         coordinator.session?.stopRunning()
-        coordinator.session = nil
         coordinator.previewLayer?.removeFromSuperlayer()
+        coordinator.session = nil
         coordinator.previewLayer = nil
         print("🧹 Camera cleaned up")
     }
@@ -150,7 +209,7 @@ struct CameraPreview: UIViewRepresentable {
         let parent: CameraPreview
         var session: AVCaptureSession?
         var previewLayer: AVCaptureVideoPreviewLayer?
-        var isScanning = true // Add scanning state
+        var isScanning = true
         
         init(_ parent: CameraPreview) {
             self.parent = parent
