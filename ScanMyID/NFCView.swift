@@ -6,7 +6,7 @@ import CoreNFC
 
 struct NFCView: View {
     let mrzData: String
-    let onComplete: () -> Void
+    let onComplete: (PassportData) -> Void
     
     @State private var readingState: ReadingState = .ready
     @State private var statusMessage = "Hold your document flat against your device"
@@ -63,45 +63,129 @@ struct NFCView: View {
             handleNFCError(error)
             
         default:
-            // Handle other message types if needed
             break
         }
     }
     
-    // MARK: - NFC Success Handler
+    // MARK: - NFC Success Handler - SIMPLIFIED VERSION THAT WORKS
     
     private func handleNFCSuccess(with passportModel: NFCPassportModel) {
         readingState = .completed
         statusMessage = "Reading completed successfully!"
         progressValue = 1.0
         
-        // Now we have the actual NFCPassportModel with all the data
         print("✅ NFC Reading Successful!")
-        print("🔍 Passport Model: \(passportModel)")
+        print("🔍 Available Data Groups: \(passportModel.dataGroupsRead.keys)")
         
-        // Extract data from the passport model (we'll improve this based on what we see)
+        // Extract MRZ data first
+        guard let parsedMRZ = MRZParser.parse(self.mrzData) else {
+            handleError("Failed to parse MRZ data")
+            return
+        }
+        
+        // Extract personal details using NFCPassportModel convenience properties
         let personalDetails = PersonalDetails(
-            fullName: "From PassportModel", // TODO: Extract from actual model
-            nationality: "From PassportModel",
-            dateOfBirth: "From PassportModel",
-            placeOfBirth: nil,
-            sex: "From PassportModel"
+            fullName: "\(passportModel.firstName ?? "Unknown") \(passportModel.lastName ?? "Unknown")",
+            surname: passportModel.lastName ?? "Unknown",
+            givenNames: passportModel.firstName ?? "Unknown",
+            nationality: passportModel.nationality ?? parsedMRZ.nationality ?? "Unknown",
+            dateOfBirth: formatDate(passportModel.dateOfBirth ?? parsedMRZ.dateOfBirth),
+            placeOfBirth: passportModel.placeOfBirth,
+            sex: passportModel.gender ?? parsedMRZ.sex ?? "Unknown",
+            documentNumber: passportModel.documentNumber ?? parsedMRZ.documentNumber,
+            documentType: passportModel.documentType ?? "P",
+            issuingCountry: parsedMRZ.issuingCountry ?? "Unknown",
+            expiryDate: formatDate(passportModel.documentExpiryDate ?? parsedMRZ.expiryDate)
         )
         
-        self.passportData = PassportData(
-            mrzData: MRZParser.parse(self.mrzData)!,
+        print("👤 Name: \(personalDetails.fullName)")
+        print("🏳️ Nationality: \(personalDetails.nationality)")
+        print("📅 DOB: \(personalDetails.dateOfBirth)")
+        print("🆔 Document: \(personalDetails.documentNumber)")
+        
+        // Extract photo using NFCPassportModel convenience property
+        var photo: UIImage?
+        if let passportImage = passportModel.passportImage {
+            photo = passportImage
+            print("✅ Photo extracted successfully")
+        } else {
+            print("❌ No photo found")
+        }
+        
+        // Collect additional information that's available
+        var additionalInfo: [String: String] = [:]
+        
+        if let personalNumber = passportModel.personalNumber {
+            additionalInfo["Personal Number"] = personalNumber
+        }
+        if let phoneNumber = passportModel.phoneNumber {
+            additionalInfo["Phone Number"] = phoneNumber
+        }
+        
+        // Create comprehensive passport data
+        let finalPassportData = PassportData(
+            mrzData: parsedMRZ,
             personalDetails: personalDetails,
-            photo: nil, // TODO: Extract from model
-            chipAuthSuccess: true, // TODO: Check model status
-            readingErrors: []
+            photo: photo,
+            additionalInfo: additionalInfo,
+            chipAuthSuccess: passportModel.passportCorrectlySigned,
+            bacSuccess: passportModel.BACStatus == .success,
+            readingErrors: passportModel.verificationErrors.map { $0.localizedDescription }
         )
         
-        // Haptic feedback
+        self.passportData = finalPassportData
+        
+        print("✅ Data extraction completed!")
+        print("🔐 BAC Success: \(finalPassportData.bacSuccess)")
+        print("🔒 Chip Auth: \(finalPassportData.chipAuthSuccess)")
+        print("📸 Photo: \(photo != nil ? "✅ Extracted" : "❌ Not found")")
+        print("📋 Additional Info: \(additionalInfo.count) fields")
+        print("❌ Verification Errors: \(finalPassportData.readingErrors.count)")
+        
+        // Log all the raw data we got for debugging
+        print("🔍 RAW NFCPassportModel Debug Info:")
+        print("   - firstName: \(passportModel.firstName ?? "nil")")
+        print("   - lastName: \(passportModel.lastName ?? "nil")")
+        print("   - documentNumber: \(passportModel.documentNumber ?? "nil")")
+        print("   - nationality: \(passportModel.nationality ?? "nil")")
+        print("   - dateOfBirth: \(passportModel.dateOfBirth ?? "nil")")
+        print("   - documentExpiryDate: \(passportModel.documentExpiryDate ?? "nil")")
+        print("   - gender: \(passportModel.gender ?? "nil")")
+        print("   - documentType: \(passportModel.documentType ?? "nil")")
+        print("   - issuingCountry: \(parsedMRZ.issuingCountry ?? "nil")")
+        print("   - placeOfBirth: \(passportModel.placeOfBirth ?? "nil")")
+        print("   - personalNumber: \(passportModel.personalNumber ?? "nil")")
+        print("   - phoneNumber: \(passportModel.phoneNumber ?? "nil")")
+        print("   - passportImage: \(passportModel.passportImage != nil ? "✅ Present" : "❌ Nil")")
+        print("   - passportCorrectlySigned: \(passportModel.passportCorrectlySigned)")
+        print("   - BACStatus: \(passportModel.BACStatus)")
+        
+        // Haptic feedback for success
         let successFeedback = UINotificationFeedbackGenerator()
         successFeedback.notificationOccurred(.success)
+        
+        // Return data to parent
+        onComplete(finalPassportData)
     }
     
-    // MARK: - NFC Error Handling
+    // MARK: - Date Formatting Helper
+    
+    private func formatDate(_ dateString: String) -> String {
+        // Handle YYMMDD format from MRZ
+        if dateString.count == 6 {
+            let year = String(dateString.prefix(2))
+            let month = String(dateString.dropFirst(2).prefix(2))
+            let day = String(dateString.dropFirst(4))
+            
+            // Convert YY to YYYY (assuming 00-30 is 2000s, 31-99 is 1900s)
+            let fullYear = Int(year)! <= 30 ? "20\(year)" : "19\(year)"
+            
+            return "\(day)/\(month)/\(fullYear)"
+        }
+        
+        // Return as-is if not in expected format
+        return dateString
+    }
     
     var body: some View {
         VStack(spacing: 40) {
@@ -177,8 +261,12 @@ struct NFCView: View {
                     }
                 }
                 
-                if readingState == .completed {
-                    Button(action: onComplete) {
+                if readingState == .completed && passportData != nil {
+                    Button(action: {
+                        if let data = passportData {
+                            onComplete(data)
+                        }
+                    }) {
                         HStack {
                             Image(systemName: "checkmark.circle")
                             Text("View Results")
@@ -191,8 +279,6 @@ struct NFCView: View {
                         .cornerRadius(12)
                     }
                 }
-                
-                // Remove the skip button - force proper flow
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
@@ -200,7 +286,6 @@ struct NFCView: View {
         .background(Color(.systemBackground))
         .onAppear {
             print("📱 NFC View loaded with MRZ: \(mrzData)")
-            // DON'T auto-start NFC - wait for user to tap button
         }
     }
     
@@ -229,8 +314,6 @@ struct NFCView: View {
         }
     }
     
-
-    
     private func startNFCReading() {
         // Reset state
         readingState = .connecting
@@ -249,10 +332,9 @@ struct NFCView: View {
         // Create passport reader
         let passportReader = PassportReader()
         
-        // Use Andy's library with proper NFC session management
+        // Read all available data groups for comprehensive extraction
         Task {
             do {
-                // Update UI to show NFC is starting
                 DispatchQueue.main.async {
                     self.readingState = .connecting
                     self.statusMessage = "Starting NFC session..."
@@ -261,13 +343,12 @@ struct NFCView: View {
                 
                 let passportModel = try await passportReader.readPassport(
                     mrzKey: parsedMRZ.bacKey,
-                    tags: [.COM, .DG1, .DG2],
+                    tags: [.COM, .DG1, .DG2, .DG11, .DG12, .DG13, .DG14, .DG15], // Read comprehensive data
                     customDisplayMessage: { displayMessage in
-                        // Handle real-time NFC progress messages
                         DispatchQueue.main.async {
                             self.handleNFCDisplayMessage(displayMessage)
                         }
-                        return nil // Use default messages
+                        return nil
                     }
                 )
                 
@@ -284,102 +365,6 @@ struct NFCView: View {
                 }
             }
         }
-        
-        // Simulate progress updates
-        simulateProgress()
-    }
-    
-    private func simulateProgress() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            if readingState == .connecting {
-                readingState = .authenticating
-                statusMessage = "Authenticating with passport..."
-                progressValue = 0.3
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if readingState == .authenticating {
-                        readingState = .readingPersonalData
-                        statusMessage = "Reading personal data..."
-                        progressValue = 0.6
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            if readingState == .readingPersonalData {
-                                readingState = .readingPhoto
-                                statusMessage = "Reading biometric photo..."
-                                progressValue = 0.9
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func handleNFCResult(passport: NFCPassportModel?, error: NFCPassportReaderError?) {
-        if let error = error {
-            handleNFCError(error)
-            return
-        }
-        
-        guard let passport = passport else {
-            handleError("No passport data received")
-            return
-        }
-        
-        // Success! Process the passport data
-        processPassportData(passport)
-    }
-    
-    private func processPassportData(_ passport: NFCPassportModel) {
-        readingState = .completed
-        statusMessage = "Reading completed successfully!"
-        progressValue = 1.0
-        
-        // Extract basic info - we'll improve this once we see what the actual data structure is
-        var personalDetails: PersonalDetails?
-        if let dg1 = passport.dataGroupsRead[.DG1] as? DataGroup1 {
-            // For now, extract basic fields that we know exist
-            personalDetails = PersonalDetails(
-                fullName: "Extracted from DG1", // We'll fix this once we see the actual structure
-                nationality: "Unknown",
-                dateOfBirth: "Unknown",
-                placeOfBirth: nil,
-                sex: "Unknown"
-            )
-            
-            // Debug: print the actual structure so we can fix it
-            print("🔍 DG1 Structure: \(dg1)")
-            print("🔍 DG1 Type: \(type(of: dg1))")
-        }
-        
-        // Extract photo - simplified approach
-        var photo: UIImage?
-        if let dg2 = passport.dataGroupsRead[.DG2] as? DataGroup2 {
-            // Debug: print the actual structure
-            print("🔍 DG2 Structure: \(dg2)")
-            print("🔍 DG2 Type: \(type(of: dg2))")
-            
-            // We'll extract the photo once we see the actual API
-            photo = nil // Placeholder for now
-        }
-        
-        // Store the complete passport data
-        self.passportData = PassportData(
-            mrzData: MRZParser.parse(mrzData)!,
-            personalDetails: personalDetails,
-            photo: photo,
-            chipAuthSuccess: true, // We'll determine this properly later
-            readingErrors: []
-        )
-        
-        print("✅ NFC Reading Successful!")
-        print("👤 Name: \(personalDetails?.fullName ?? "Unknown")")
-        print("🏳️ Nationality: \(personalDetails?.nationality ?? "Unknown")")
-        print("📸 Photo: \(photo != nil ? "✅ Extracted" : "❌ Not found")")
-        
-        // Haptic feedback for success
-        let successFeedback = UINotificationFeedbackGenerator()
-        successFeedback.notificationOccurred(.success)
     }
     
     private func handleNFCError(_ error: NFCPassportReaderError) {
@@ -411,13 +396,6 @@ struct NFCView: View {
         handleError(errorMessage)
     }
     
-    private func handleNFCInvalidation(reason: String) {
-        print("📱 NFC Session invalidated: \(reason)")
-        if readingState != .completed {
-            handleError("NFC session ended unexpectedly")
-        }
-    }
-    
     private func handleError(_ message: String) {
         readingState = .failed
         statusMessage = "Reading Failed"
@@ -432,27 +410,9 @@ struct NFCView: View {
     }
 }
 
-// MARK: - Data Models
-
-struct PassportData {
-    let mrzData: MRZData
-    let personalDetails: PersonalDetails?
-    let photo: UIImage?
-    let chipAuthSuccess: Bool
-    let readingErrors: [String]
-}
-
-struct PersonalDetails {
-    let fullName: String
-    let nationality: String
-    let dateOfBirth: String
-    let placeOfBirth: String?
-    let sex: String
-}
-
 #Preview {
     NFCView(
         mrzData: "L898902C3UTO7408122F1204159ZE184226B<<<<<10",
-        onComplete: {}
+        onComplete: { _ in }
     )
 }
