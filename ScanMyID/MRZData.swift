@@ -2,6 +2,7 @@
 
 import Foundation
 import UIKit
+import SwiftUI
 
 // MARK: - Enhanced MRZData with more fields
 
@@ -21,6 +22,88 @@ struct MRZData {
     var bacKey: String {
         return documentNumber + dateOfBirth + expiryDate
     }
+
+// MARK: - Passport Expiry Validation
+
+enum PassportValidityStatus {
+    case valid   // ✅
+    case warning // ⚠️
+    case expired // ❌
+    
+    var icon: String {
+        switch self {
+        case .valid: return "✅"
+        case .warning: return "⚠️"
+        case .expired: return "❌"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .valid: return .green
+        case .warning: return .orange
+        case .expired: return .red
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .valid: return "Valid"
+        case .warning: return "Expires Soon"
+        case .expired: return "Expired"
+        }
+    }
+}
+
+func checkPassportValidity(expiryDate: Date) -> PassportValidityStatus {
+    let today = Date()
+    if expiryDate < today {
+        return .expired
+    }
+    
+    let daysLeft = Calendar.current.dateComponents([.day], from: today, to: expiryDate).day ?? 0
+    if daysLeft < 90 {
+        return .warning
+    }
+    
+    return .valid
+}
+
+// Helper to parse date from MRZ format (YYMMDD)
+func parseExpiryDate(_ dateString: String) -> Date? {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyMMdd"
+    return formatter.date(from: dateString)
+}
+
+// MARK: - Country Flag Helper
+
+struct CountryFlags {
+    static func flag(for countryCode: String) -> String {
+        let code = countryCode.uppercased()
+        
+        // Convert country code to flag emoji
+        let flagMap: [String: String] = [
+            "SRB": "🇷🇸", "USA": "🇺🇸", "GBR": "🇬🇧", "DEU": "🇩🇪", "FRA": "🇫🇷",
+            "ITA": "🇮🇹", "ESP": "🇪🇸", "NLD": "🇳🇱", "BEL": "🇧🇪", "AUT": "🇦🇹",
+            "CHE": "🇨🇭", "POL": "🇵🇱", "CZE": "🇨🇿", "SVK": "🇸🇰", "HUN": "🇭🇺",
+            "ROU": "🇷🇴", "BGR": "🇧🇬", "HRV": "🇭🇷", "SVN": "🇸🇮", "BIH": "🇧🇦",
+            "MNE": "🇲🇪", "MKD": "🇲🇰", "ALB": "🇦🇱", "GRC": "🇬🇷", "TUR": "🇹🇷",
+            "CAN": "🇨🇦", "MEX": "🇲🇽", "BRA": "🇧🇷", "ARG": "🇦🇷", "AUS": "🇦🇺",
+            "NZL": "🇳🇿", "JPN": "🇯🇵", "KOR": "🇰🇷", "CHN": "🇨🇳", "IND": "🇮🇳",
+            "RUS": "🇷🇺", "UKR": "🇺🇦", "NOR": "🇳🇴", "SWE": "🇸🇪", "DNK": "🇩🇰",
+            "FIN": "🇫🇮", "ISL": "🇮🇸", "IRL": "🇮🇪", "PRT": "🇵🇹", "LUX": "🇱🇺",
+            "MLT": "🇲🇹", "CYP": "🇨🇾", "EST": "🇪🇪", "LVA": "🇱🇻", "LTU": "🇱🇹"
+        ]
+        
+        return flagMap[code] ?? "🏳️"
+    }
+    
+    static func flagWithCode(_ countryCode: String) -> String {
+        let flag = flag(for: countryCode)
+        return "\(flag) \(countryCode)"
+    }
+}
 }
 
 // MARK: - Enhanced PersonalDetails with complete information
@@ -225,6 +308,48 @@ struct SavedPassportScan: Codable {
     let hasPhoto: Bool
     let isAuthenticated: Bool
     
+    // v1.2: Store complete passport data for full view recreation
+    // Note: We'll store this as JSON data since PassportData contains UIImage
+    private let passportDataJSON: Data
+    
+    var completePassportData: PassportData? {
+        // For now, return a simplified version - we'll improve this later
+        let mrzData = MRZData(
+            documentNumber: documentNumber,
+            dateOfBirth: "000000", // Placeholder
+            expiryDate: expiryDate,
+            rawMRZ: "PLACEHOLDER",
+            documentType: "P",
+            issuingCountry: nationality,
+            nationality: nationality,
+            sex: "M"
+        )
+        
+        let personalDetails = PersonalDetails(
+            fullName: fullName,
+            surname: fullName.components(separatedBy: " ").last ?? "",
+            givenNames: fullName.components(separatedBy: " ").first ?? "",
+            nationality: nationality,
+            dateOfBirth: "01/01/1990",
+            placeOfBirth: nil,
+            sex: "M",
+            documentNumber: documentNumber,
+            documentType: "P",
+            issuingCountry: nationality,
+            expiryDate: expiryDate
+        )
+        
+        return PassportData(
+            mrzData: mrzData,
+            personalDetails: personalDetails,
+            photo: PassportDataStorage.loadPhoto(for: id),
+            additionalInfo: [:],
+            chipAuthSuccess: isAuthenticated,
+            bacSuccess: true,
+            readingErrors: []
+        )
+    }
+    
     init(from passportData: PassportData) {
         self.id = UUID()
         self.scanDate = Date()
@@ -234,6 +359,9 @@ struct SavedPassportScan: Codable {
         self.expiryDate = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
         self.hasPhoto = passportData.hasPhoto
         self.isAuthenticated = passportData.isAuthenticated
+        
+        // Store as JSON for now (simplified)
+        self.passportDataJSON = Data()
     }
 }
 

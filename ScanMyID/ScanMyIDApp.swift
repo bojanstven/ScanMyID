@@ -21,14 +21,20 @@ struct ContentView: View {
         case camera
         case nfcScan
         case results
+        case history
     }
     
     var body: some View {
         switch currentScreen {
         case .welcome:
-            WelcomeView(onScanTapped: {
-                currentScreen = .camera
-            })
+            WelcomeView(
+                onScanTapped: {
+                    currentScreen = .camera
+                },
+                onHistoryTapped: {
+                    currentScreen = .history
+                }
+            )
         case .camera:
             CameraView(onMRZScanned: { mrzData in
                 scannedMRZ = mrzData
@@ -62,6 +68,12 @@ struct ContentView: View {
                         scannedMRZ = ""
                         self.passportData = nil
                         currentScreen = .camera
+                    },
+                    onHome: {
+                        // Reset all data and go back to welcome
+                        scannedMRZ = ""
+                        self.passportData = nil
+                        currentScreen = .welcome
                     }
                 )
             } else {
@@ -72,6 +84,10 @@ struct ContentView: View {
                         currentScreen = .welcome
                     }
             }
+        case .history:
+            SavedScansView(onDismiss: {
+                currentScreen = .welcome
+            })
         }
     }
 }

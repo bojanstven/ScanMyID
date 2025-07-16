@@ -194,22 +194,23 @@ struct NFCView: View {
             // NFC Animation
             VStack(spacing: 20) {
                 ZStack {
-                    // Animated rings
+                    // Fixed center waves that pulse outward
                     ForEach(0..<3, id: \.self) { index in
                         Circle()
                             .stroke(Color.blue.opacity(0.3), lineWidth: 2)
-                            .frame(width: 80 + CGFloat(index * 40), height: 80 + CGFloat(index * 40))
-                            .scaleEffect(readingState == .connecting || readingState == .authenticating ? 1.2 : 1.0)
+                            .frame(width: 60 + CGFloat(index * 30), height: 60 + CGFloat(index * 30))
+                            .scaleEffect(readingState == .connecting || readingState == .authenticating || readingState == .readingPersonalData || readingState == .readingPhoto ? 1.0 + CGFloat(index) * 0.3 : 1.0)
+                            .opacity(readingState == .connecting || readingState == .authenticating || readingState == .readingPersonalData || readingState == .readingPhoto ? 1.0 - CGFloat(index) * 0.3 : 0.5)
                             .animation(
-                                Animation.easeInOut(duration: 1.5)
-                                    .repeatForever(autoreverses: true)
-                                    .delay(Double(index) * 0.2),
+                                Animation.easeOut(duration: 1.5)
+                                    .repeatForever(autoreverses: false)
+                                    .delay(Double(index) * 0.3),
                                 value: readingState
                             )
                     }
                     
-                    // Center NFC icon
-                    Image(systemName: iconForState)
+                    // Center wave icon (same as Welcome screen)
+                    Image(systemName: "wave.3.up.circle.fill")
                         .font(.system(size: 50))
                         .foregroundColor(colorForState)
                         .scaleEffect(readingState == .completed ? 1.3 : 1.0)
@@ -343,7 +344,7 @@ struct NFCView: View {
                 
                 let passportModel = try await passportReader.readPassport(
                     mrzKey: parsedMRZ.bacKey,
-                    tags: [.COM, .DG1, .DG2, .DG11, .DG12, .DG13, .DG14, .DG15], // Read comprehensive data
+                    tags: [.COM, .SOD, .DG1, .DG2, .DG11, .DG12, .DG13, .DG14, .DG15], // Added .SOD for digital signature
                     customDisplayMessage: { displayMessage in
                         DispatchQueue.main.async {
                             self.handleNFCDisplayMessage(displayMessage)

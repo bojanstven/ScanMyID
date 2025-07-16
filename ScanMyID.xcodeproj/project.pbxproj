@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		D9EAD4302E21ADEF00ABAD78 /* ScanMyID.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScanMyID.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9DBA62E2E270CD200DB3B22 /* ScanMyID.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScanMyID.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,7 +51,7 @@
 			isa = PBXGroup;
 			children = (
 				D90A9ECF2E1E982E005BFCCA /* ScanMyID */,
-				D9EAD4302E21ADEF00ABAD78 /* ScanMyID.app */,
+				D9DBA62E2E270CD200DB3B22 /* ScanMyID.app */,
 			);
 			sourceTree = "<group>";
 		};
@@ -78,7 +78,7 @@
 				D9B9EC562E22D17300312DE3 /* NFCPassportReader */,
 			);
 			productName = ScanMyID;
-			productReference = D9EAD4302E21ADEF00ABAD78 /* ScanMyID.app */;
+			productReference = D9DBA62E2E270CD200DB3B22 /* ScanMyID.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -268,7 +268,7 @@
 				CODE_SIGN_ENTITLEMENTS = ScanMyID/ScanMyID.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ScanMyID/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = ZF72L2BG8M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -293,7 +293,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = Bojanstven.ScanMyID;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -314,7 +314,7 @@
 				CODE_SIGN_ENTITLEMENTS = ScanMyID/ScanMyID.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ScanMyID/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = ZF72L2BG8M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -339,7 +339,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = Bojanstven.ScanMyID;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

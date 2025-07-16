@@ -4,24 +4,31 @@ import SwiftUI
 
 struct WelcomeView: View {
     let onScanTapped: () -> Void
+    let onHistoryTapped: () -> Void // Add history callback
     @State private var animationScale: CGFloat = 1.0
     
     var body: some View {
         VStack(spacing: 20) {
             
-            // App Title
+            // App Title with Version
             VStack(spacing: 30) {
-                HStack(spacing: 0) {
-                    Text("ScanMy")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                    Text("ID")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.gray)
-                        .padding(.vertical, 10)
-
+                VStack(spacing: 5) {
+                    HStack(spacing: 0) {
+                        Text("ScanMy")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                        Text("ID")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    // Version subtitle
+                    Text("v1.2")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
                 }
                 
                 // App icon with subtle pulse animation
@@ -85,17 +92,35 @@ struct WelcomeView: View {
             
             Spacer()
             
-            // Scan Button
-            Button(action: onScanTapped) {
-                Text("Scan Document")
+            // Action Buttons
+            VStack(spacing: 16) {
+                // Main Scan Button
+                Button(action: onScanTapped) {
+                    Text("Scan Document")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 20)
+                
+                // History Button
+                Button(action: onHistoryTapped) {
+                    HStack {
+                        Image(systemName: "folder")
+                        Text("View History")
+                    }
                     .font(.headline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.blue)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(Color.blue)
+                    .background(Color(.systemGray6))
                     .cornerRadius(12)
+                }
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
         .background(Color(.systemBackground))
@@ -103,5 +128,5 @@ struct WelcomeView: View {
 }
 
 #Preview {
-    WelcomeView(onScanTapped: {})
+    WelcomeView(onScanTapped: {}, onHistoryTapped: {})
 }
