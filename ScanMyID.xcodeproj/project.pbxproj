@@ -8,10 +8,20 @@
 
 /* Begin PBXBuildFile section */
 		D9B9EC572E22D17300312DE3 /* NFCPassportReader in Frameworks */ = {isa = PBXBuildFile; productRef = D9B9EC562E22D17300312DE3 /* NFCPassportReader */; };
+		D9DBA6442E282F5F00DB3B22 /* CoreDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DBA6432E282F5F00DB3B22 /* CoreDataManager.swift */; };
+		D9DBA6492E28312F00DB3B22 /* PassportPhoto+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DBA6452E28312F00DB3B22 /* PassportPhoto+CoreDataClass.swift */; };
+		D9DBA64A2E28312F00DB3B22 /* PassportPhoto+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DBA6462E28312F00DB3B22 /* PassportPhoto+CoreDataProperties.swift */; };
+		D9DBA64B2E28312F00DB3B22 /* SavedPassport+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DBA6482E28312F00DB3B22 /* SavedPassport+CoreDataProperties.swift */; };
+		D9DBA64C2E28312F00DB3B22 /* SavedPassport+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DBA6472E28312F00DB3B22 /* SavedPassport+CoreDataClass.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D9DBA62E2E270CD200DB3B22 /* ScanMyID.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScanMyID.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9DBA6432E282F5F00DB3B22 /* CoreDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataManager.swift; sourceTree = "<group>"; };
+		D9DBA6452E28312F00DB3B22 /* PassportPhoto+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PassportPhoto+CoreDataClass.swift"; sourceTree = "<group>"; };
+		D9DBA6462E28312F00DB3B22 /* PassportPhoto+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PassportPhoto+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		D9DBA6472E28312F00DB3B22 /* SavedPassport+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SavedPassport+CoreDataClass.swift"; sourceTree = "<group>"; };
+		D9DBA6482E28312F00DB3B22 /* SavedPassport+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SavedPassport+CoreDataProperties.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -50,6 +60,11 @@
 		D90A9EC42E1E982E005BFCCA = {
 			isa = PBXGroup;
 			children = (
+				D9DBA6452E28312F00DB3B22 /* PassportPhoto+CoreDataClass.swift */,
+				D9DBA6462E28312F00DB3B22 /* PassportPhoto+CoreDataProperties.swift */,
+				D9DBA6472E28312F00DB3B22 /* SavedPassport+CoreDataClass.swift */,
+				D9DBA6482E28312F00DB3B22 /* SavedPassport+CoreDataProperties.swift */,
+				D9DBA6432E282F5F00DB3B22 /* CoreDataManager.swift */,
 				D90A9ECF2E1E982E005BFCCA /* ScanMyID */,
 				D9DBA62E2E270CD200DB3B22 /* ScanMyID.app */,
 			);
@@ -133,6 +148,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D9DBA6492E28312F00DB3B22 /* PassportPhoto+CoreDataClass.swift in Sources */,
+				D9DBA64A2E28312F00DB3B22 /* PassportPhoto+CoreDataProperties.swift in Sources */,
+				D9DBA64B2E28312F00DB3B22 /* SavedPassport+CoreDataProperties.swift in Sources */,
+				D9DBA64C2E28312F00DB3B22 /* SavedPassport+CoreDataClass.swift in Sources */,
+				D9DBA6442E282F5F00DB3B22 /* CoreDataManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,7 +287,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ScanMyID/ScanMyID.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = ZF72L2BG8M;
 				ENABLE_PREVIEWS = YES;
@@ -313,7 +333,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ScanMyID/ScanMyID.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = ZF72L2BG8M;
 				ENABLE_PREVIEWS = YES;

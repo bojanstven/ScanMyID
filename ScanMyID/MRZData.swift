@@ -1,5 +1,3 @@
-//
-
 import Foundation
 import UIKit
 import SwiftUI
@@ -22,6 +20,40 @@ struct MRZData {
     var bacKey: String {
         return documentNumber + dateOfBirth + expiryDate
     }
+}
+
+// MARK: - Enhanced PersonalDetails with complete information
+
+struct PersonalDetails {
+    let fullName: String
+    let surname: String
+    let givenNames: String
+    let nationality: String
+    let dateOfBirth: String
+    let placeOfBirth: String?
+    let sex: String
+    let documentNumber: String
+    let documentType: String
+    let issuingCountry: String
+    let expiryDate: String
+}
+
+// MARK: - Enhanced PassportData with comprehensive information
+
+struct PassportData {
+    let mrzData: MRZData
+    let personalDetails: PersonalDetails?
+    let photo: UIImage?
+    let additionalInfo: [String: String]
+    let chipAuthSuccess: Bool
+    let bacSuccess: Bool
+    let readingErrors: [String]
+    
+    // Computed properties for easy access
+    var hasPhoto: Bool { photo != nil }
+    var isAuthenticated: Bool { chipAuthSuccess && bacSuccess }
+    var readingDate: Date { Date() }
+}
 
 // MARK: - Passport Expiry Validation
 
@@ -71,29 +103,187 @@ func checkPassportValidity(expiryDate: Date) -> PassportValidityStatus {
 
 // Helper to parse date from MRZ format (YYMMDD)
 func parseExpiryDate(_ dateString: String) -> Date? {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyMMdd"
-    return formatter.date(from: dateString)
+    // Handle different date formats
+    let formatters = [
+        DateFormatter.yyMMdd,
+        DateFormatter.ddMMYYYY,
+        DateFormatter.shortDate
+    ]
+    
+    for formatter in formatters {
+        if let date = formatter.date(from: dateString) {
+            return date
+        }
+    }
+    
+    return nil
 }
 
-// MARK: - Country Flag Helper
+// MARK: - Comprehensive Country Flags Helper (ICAO Biometric Passport Countries)
 
 struct CountryFlags {
     static func flag(for countryCode: String) -> String {
         let code = countryCode.uppercased()
         
-        // Convert country code to flag emoji
+        // Full List of Countries with Biometric Passports (ePassports) — ISO 3166 Alpha-3 Code + Flag
+        // Alphabetically ordered and comprehensive
         let flagMap: [String: String] = [
-            "SRB": "🇷🇸", "USA": "🇺🇸", "GBR": "🇬🇧", "DEU": "🇩🇪", "FRA": "🇫🇷",
-            "ITA": "🇮🇹", "ESP": "🇪🇸", "NLD": "🇳🇱", "BEL": "🇧🇪", "AUT": "🇦🇹",
-            "CHE": "🇨🇭", "POL": "🇵🇱", "CZE": "🇨🇿", "SVK": "🇸🇰", "HUN": "🇭🇺",
-            "ROU": "🇷🇴", "BGR": "🇧🇬", "HRV": "🇭🇷", "SVN": "🇸🇮", "BIH": "🇧🇦",
-            "MNE": "🇲🇪", "MKD": "🇲🇰", "ALB": "🇦🇱", "GRC": "🇬🇷", "TUR": "🇹🇷",
-            "CAN": "🇨🇦", "MEX": "🇲🇽", "BRA": "🇧🇷", "ARG": "🇦🇷", "AUS": "🇦🇺",
-            "NZL": "🇳🇿", "JPN": "🇯🇵", "KOR": "🇰🇷", "CHN": "🇨🇳", "IND": "🇮🇳",
-            "RUS": "🇷🇺", "UKR": "🇺🇦", "NOR": "🇳🇴", "SWE": "🇸🇪", "DNK": "🇩🇰",
-            "FIN": "🇫🇮", "ISL": "🇮🇸", "IRL": "🇮🇪", "PRT": "🇵🇹", "LUX": "🇱🇺",
-            "MLT": "🇲🇹", "CYP": "🇨🇾", "EST": "🇪🇪", "LVA": "🇱🇻", "LTU": "🇱🇹"
+            "AFG": "🇦🇫", // Afghanistan
+            "ALB": "🇦🇱", // Albania
+            "DZA": "🇩🇿", // Algeria
+            "AND": "🇦🇩", // Andorra
+            "AGO": "🇦🇴", // Angola
+            "ARG": "🇦🇷", // Argentina
+            "ARM": "🇦🇲", // Armenia
+            "AUS": "🇦🇺", // Australia
+            "AUT": "🇦🇹", // Austria
+            "AZE": "🇦🇿", // Azerbaijan
+            "BGD": "🇧🇩", // Bangladesh
+            "BLR": "🇧🇾", // Belarus
+            "BEL": "🇧🇪", // Belgium
+            "BEN": "🇧🇯", // Benin
+            "BIH": "🇧🇦", // Bosnia and Herzegovina
+            "BOL": "🇧🇴", // Bolivia
+            "BRA": "🇧🇷", // Brazil
+            "BGR": "🇧🇬", // Bulgaria
+            "BFA": "🇧🇫", // Burkina Faso
+            "BDI": "🇧🇮", // Burundi
+            "KHM": "🇰🇭", // Cambodia
+            "CMR": "🇨🇲", // Cameroon
+            "CAN": "🇨🇦", // Canada
+            "CPV": "🇨🇻", // Cape Verde
+            "CAF": "🇨🇫", // Central African Republic
+            "TCD": "🇹🇩", // Chad
+            "CHL": "🇨🇱", // Chile
+            "CHN": "🇨🇳", // China
+            "COL": "🇨🇴", // Colombia
+            "COM": "🇰🇲", // Comoros
+            "COG": "🇨🇬", // Congo
+            "CRI": "🇨🇷", // Costa Rica
+            "CIV": "🇨🇮", // Côte d'Ivoire
+            "HRV": "🇭🇷", // Croatia
+            "CYP": "🇨🇾", // Cyprus
+            "CZE": "🇨🇿", // Czech Republic
+            "COD": "🇨🇩", // Democratic Republic of the Congo
+            "DNK": "🇩🇰", // Denmark
+            "DJI": "🇩🇯", // Djibouti
+            "DOM": "🇩🇴", // Dominican Republic
+            "ECU": "🇪🇨", // Ecuador
+            "EGY": "🇪🇬", // Egypt
+            "SLV": "🇸🇻", // El Salvador
+            "GNQ": "🇬🇶", // Equatorial Guinea
+            "EST": "🇪🇪", // Estonia
+            "ETH": "🇪🇹", // Ethiopia
+            "FJI": "🇫🇯", // Fiji
+            "FIN": "🇫🇮", // Finland
+            "FRA": "🇫🇷", // France
+            "GAB": "🇬🇦", // Gabon
+            "GMB": "🇬🇲", // Gambia
+            "GEO": "🇬🇪", // Georgia
+            "DEU": "🇩🇪", // Germany
+            "GHA": "🇬🇭", // Ghana
+            "GRC": "🇬🇷", // Greece
+            "GRD": "🇬🇩", // Grenada
+            "GTM": "🇬🇹", // Guatemala
+            "GIN": "🇬🇳", // Guinea
+            "GUY": "🇬🇾", // Guyana
+            "HTI": "🇭🇹", // Haiti
+            "HND": "🇭🇳", // Honduras
+            "HUN": "🇭🇺", // Hungary
+            "ISL": "🇮🇸", // Iceland
+            "IND": "🇮🇳", // India
+            "IDN": "🇮🇩", // Indonesia
+            "IRN": "🇮🇷", // Iran
+            "IRQ": "🇮🇶", // Iraq
+            "IRL": "🇮🇪", // Ireland
+            "ISR": "🇮🇱", // Israel
+            "ITA": "🇮🇹", // Italy
+            "JAM": "🇯🇲", // Jamaica
+            "JPN": "🇯🇵", // Japan
+            "JOR": "🇯🇴", // Jordan
+            "KAZ": "🇰🇿", // Kazakhstan
+            "KEN": "🇰🇪", // Kenya
+            "KWT": "🇰🇼", // Kuwait
+            "KGZ": "🇰🇬", // Kyrgyzstan
+            "LAO": "🇱🇦", // Laos
+            "LVA": "🇱🇻", // Latvia
+            "LBN": "🇱🇧", // Lebanon
+            "LSO": "🇱🇸", // Lesotho
+            "LBR": "🇱🇷", // Liberia
+            "LBY": "🇱🇾", // Libya
+            "LIE": "🇱🇮", // Liechtenstein
+            "LTU": "🇱🇹", // Lithuania
+            "LUX": "🇱🇺", // Luxembourg
+            "MDG": "🇲🇬", // Madagascar
+            "MWI": "🇲🇼", // Malawi
+            "MYS": "🇲🇾", // Malaysia
+            "MDV": "🇲🇻", // Maldives
+            "MLI": "🇲🇱", // Mali
+            "MLT": "🇲🇹", // Malta
+            "MRT": "🇲🇷", // Mauritania
+            "MUS": "🇲🇺", // Mauritius
+            "MEX": "🇲🇽", // Mexico
+            "MDA": "🇲🇩", // Moldova
+            "MNG": "🇲🇳", // Mongolia
+            "MNE": "🇲🇪", // Montenegro
+            "MAR": "🇲🇦", // Morocco
+            "MOZ": "🇲🇿", // Mozambique
+            "MMR": "🇲🇲", // Myanmar
+            "NAM": "🇳🇦", // Namibia
+            "NPL": "🇳🇵", // Nepal
+            "NLD": "🇳🇱", // Netherlands
+            "NZL": "🇳🇿", // New Zealand
+            "NER": "🇳🇪", // Niger
+            "NGA": "🇳🇬", // Nigeria
+            "MKD": "🇲🇰", // North Macedonia
+            "NOR": "🇳🇴", // Norway
+            "OMN": "🇴🇲", // Oman
+            "PAK": "🇵🇰", // Pakistan
+            "PAN": "🇵🇦", // Panama
+            "PNG": "🇵🇬", // Papua New Guinea
+            "PRY": "🇵🇾", // Paraguay
+            "PER": "🇵🇪", // Peru
+            "PHL": "🇵🇭", // Philippines
+            "POL": "🇵🇱", // Poland
+            "PRT": "🇵🇹", // Portugal
+            "QAT": "🇶🇦", // Qatar
+            "ROU": "🇷🇴", // Romania
+            "RUS": "🇷🇺", // Russia
+            "RWA": "🇷🇼", // Rwanda
+            "SAU": "🇸🇦", // Saudi Arabia
+            "SEN": "🇸🇳", // Senegal
+            "SRB": "🇷🇸", // Serbia
+            "SGP": "🇸🇬", // Singapore
+            "SVK": "🇸🇰", // Slovakia
+            "SVN": "🇸🇮", // Slovenia
+            "ZAF": "🇿🇦", // South Africa
+            "ESP": "🇪🇸", // Spain
+            "LKA": "🇱🇰", // Sri Lanka
+            "SDN": "🇸🇩", // Sudan
+            "SUR": "🇸🇷", // Suriname
+            "SWZ": "🇸🇿", // Swaziland (Eswatini)
+            "SWE": "🇸🇪", // Sweden
+            "CHE": "🇨🇭", // Switzerland
+            "SYR": "🇸🇾", // Syria
+            "TWN": "🇹🇼", // Taiwan
+            "TJK": "🇹🇯", // Tajikistan
+            "THA": "🇹🇭", // Thailand
+            "TGO": "🇹🇬", // Togo
+            "TUN": "🇹🇳", // Tunisia
+            "TUR": "🇹🇷", // Turkey
+            "TKM": "🇹🇲", // Turkmenistan
+            "UGA": "🇺🇬", // Uganda
+            "UKR": "🇺🇦", // Ukraine
+            "ARE": "🇦🇪", // United Arab Emirates
+            "GBR": "🇬🇧", // United Kingdom
+            "USA": "🇺🇸", // United States
+            "URY": "🇺🇾", // Uruguay
+            "UZB": "🇺🇿", // Uzbekistan
+            "VEN": "🇻🇪", // Venezuela
+            "VNM": "🇻🇳", // Vietnam
+            "YEM": "🇾🇪", // Yemen
+            "ZMB": "🇿🇲", // Zambia
+            "ZWE": "🇿🇼"  // Zimbabwe
         ]
         
         return flagMap[code] ?? "🏳️"
@@ -103,40 +293,6 @@ struct CountryFlags {
         let flag = flag(for: countryCode)
         return "\(flag) \(countryCode)"
     }
-}
-}
-
-// MARK: - Enhanced PersonalDetails with complete information
-
-struct PersonalDetails {
-    let fullName: String
-    let surname: String
-    let givenNames: String
-    let nationality: String
-    let dateOfBirth: String
-    let placeOfBirth: String?
-    let sex: String
-    let documentNumber: String
-    let documentType: String
-    let issuingCountry: String
-    let expiryDate: String
-}
-
-// MARK: - Enhanced PassportData with comprehensive information
-
-struct PassportData {
-    let mrzData: MRZData
-    let personalDetails: PersonalDetails?
-    let photo: UIImage?
-    let additionalInfo: [String: String]
-    let chipAuthSuccess: Bool
-    let bacSuccess: Bool
-    let readingErrors: [String]
-    
-    // Computed properties for easy access
-    var hasPhoto: Bool { photo != nil }
-    var isAuthenticated: Bool { chipAuthSuccess && bacSuccess }
-    var readingDate: Date { Date() }
 }
 
 // MARK: - Enhanced MRZParser with more comprehensive parsing
@@ -296,198 +452,8 @@ class MRZParser {
     }
 }
 
-// MARK: - Data Persistence Models
+// MARK: - Extensions for compatibility
 
-struct SavedPassportScan: Codable {
-    let id: UUID
-    let scanDate: Date
-    let documentNumber: String
-    let fullName: String
-    let nationality: String
-    let expiryDate: String
-    let hasPhoto: Bool
-    let isAuthenticated: Bool
-    
-    // v1.2: Store complete passport data for full view recreation
-    // Note: We'll store this as JSON data since PassportData contains UIImage
-    private let passportDataJSON: Data
-    
-    var completePassportData: PassportData? {
-        // For now, return a simplified version - we'll improve this later
-        let mrzData = MRZData(
-            documentNumber: documentNumber,
-            dateOfBirth: "000000", // Placeholder
-            expiryDate: expiryDate,
-            rawMRZ: "PLACEHOLDER",
-            documentType: "P",
-            issuingCountry: nationality,
-            nationality: nationality,
-            sex: "M"
-        )
-        
-        let personalDetails = PersonalDetails(
-            fullName: fullName,
-            surname: fullName.components(separatedBy: " ").last ?? "",
-            givenNames: fullName.components(separatedBy: " ").first ?? "",
-            nationality: nationality,
-            dateOfBirth: "01/01/1990",
-            placeOfBirth: nil,
-            sex: "M",
-            documentNumber: documentNumber,
-            documentType: "P",
-            issuingCountry: nationality,
-            expiryDate: expiryDate
-        )
-        
-        return PassportData(
-            mrzData: mrzData,
-            personalDetails: personalDetails,
-            photo: PassportDataStorage.loadPhoto(for: id),
-            additionalInfo: [:],
-            chipAuthSuccess: isAuthenticated,
-            bacSuccess: true,
-            readingErrors: []
-        )
-    }
-    
-    init(from passportData: PassportData) {
-        self.id = UUID()
-        self.scanDate = Date()
-        self.documentNumber = passportData.personalDetails?.documentNumber ?? passportData.mrzData.documentNumber
-        self.fullName = passportData.personalDetails?.fullName ?? "Unknown"
-        self.nationality = passportData.personalDetails?.nationality ?? passportData.mrzData.nationality ?? "Unknown"
-        self.expiryDate = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
-        self.hasPhoto = passportData.hasPhoto
-        self.isAuthenticated = passportData.isAuthenticated
-        
-        // Store as JSON for now (simplified)
-        self.passportDataJSON = Data()
-    }
-}
-
-// MARK: - Local Storage Helper
-
-class PassportDataStorage {
-    private static let scansKey = "SavedPassportScans"
-    private static let photosDirectory = "PassportPhotos"
-    
-    static func savePassportData(_ passportData: PassportData) -> Bool {
-        // Save metadata
-        let savedScan = SavedPassportScan(from: passportData)
-        var existingScans = loadSavedScans()
-        existingScans.append(savedScan)
-        
-        // Limit to last 50 scans
-        if existingScans.count > 50 {
-            existingScans = Array(existingScans.suffix(50))
-        }
-        
-        do {
-            let data = try JSONEncoder().encode(existingScans)
-            UserDefaults.standard.set(data, forKey: scansKey)
-            
-            // Save photo separately if available
-            if let photo = passportData.photo {
-                savePhoto(photo, for: savedScan.id)
-            }
-            
-            print("💾 Passport data saved successfully")
-            return true
-        } catch {
-            print("❌ Failed to save passport data: \(error)")
-            return false
-        }
-    }
-    
-    static func loadSavedScans() -> [SavedPassportScan] {
-        guard let data = UserDefaults.standard.data(forKey: scansKey) else {
-            return []
-        }
-        
-        do {
-            return try JSONDecoder().decode([SavedPassportScan].self, from: data)
-        } catch {
-            print("❌ Failed to load saved scans: \(error)")
-            return []
-        }
-    }
-    
-    private static func savePhoto(_ photo: UIImage, for id: UUID) {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-        
-        let photosDirectory = documentsDirectory.appendingPathComponent(Self.photosDirectory)
-        
-        // Create photos directory if it doesn't exist
-        try? FileManager.default.createDirectory(at: photosDirectory, withIntermediateDirectories: true)
-        
-        let photoURL = photosDirectory.appendingPathComponent("\(id.uuidString).jpg")
-        
-        if let jpegData = photo.jpegData(compressionQuality: 0.8) {
-            try? jpegData.write(to: photoURL)
-        }
-    }
-    
-    static func loadPhoto(for id: UUID) -> UIImage? {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        
-        let photosDirectory = documentsDirectory.appendingPathComponent(Self.photosDirectory)
-        let photoURL = photosDirectory.appendingPathComponent("\(id.uuidString).jpg")
-        
-        guard let data = try? Data(contentsOf: photoURL) else {
-            return nil
-        }
-        
-        return UIImage(data: data)
-    }
-    
-    static func deleteScan(_ scan: SavedPassportScan) {
-        var existingScans = loadSavedScans()
-        existingScans.removeAll { $0.id == scan.id }
-        
-        do {
-            let data = try JSONEncoder().encode(existingScans)
-            UserDefaults.standard.set(data, forKey: scansKey)
-            
-            // Delete associated photo
-            deletePhoto(for: scan.id)
-            
-            print("🗑️ Scan deleted successfully")
-        } catch {
-            print("❌ Failed to delete scan: \(error)")
-        }
-    }
-    
-    private static func deletePhoto(for id: UUID) {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-        
-        let photosDirectory = documentsDirectory.appendingPathComponent(Self.photosDirectory)
-        let photoURL = photosDirectory.appendingPathComponent("\(id.uuidString).jpg")
-        
-        try? FileManager.default.removeItem(at: photoURL)
-    }
-    
-    static func clearAllData() {
-        UserDefaults.standard.removeObject(forKey: scansKey)
-        
-        // Delete all photos
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-        
-        let photosDirectory = documentsDirectory.appendingPathComponent(Self.photosDirectory)
-        try? FileManager.default.removeItem(at: photosDirectory)
-        
-        print("🧹 All passport data cleared")
-    }
-}
-
-// Extensions for compatibility
 extension PersonalDetails {
     // Make placeOfBirth mutable for updates
     func withPlaceOfBirth(_ placeOfBirth: String?) -> PersonalDetails {
@@ -505,4 +471,33 @@ extension PersonalDetails {
             expiryDate: self.expiryDate
         )
     }
+}
+
+// MARK: - Date Formatters
+
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter
+    }()
+    
+    static let shortDateTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
+    
+    static let yyMMdd: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyMMdd"
+        return formatter
+    }()
+    
+    static let ddMMYYYY: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter
+    }()
 }

@@ -1,14 +1,14 @@
-//
-
 import SwiftUI
+import CoreData
 
 struct ResultsView: View {
     let passportData: PassportData
     let onScanAnother: () -> Void
-    let onHome: () -> Void // Add home callback
+    let onHome: () -> Void
     @State private var showingSaveSuccess = false
     @State private var showingSavedScans = false
     @State private var isPhotoFullScreen = false
+    @State private var isSaving = false // Add this missing state
     
     var body: some View {
         ScrollView {
@@ -219,16 +219,23 @@ struct ResultsView: View {
                     HStack(spacing: 12) {
                         Button(action: saveData) {
                             HStack {
-                                Image(systemName: "square.and.arrow.down")
-                                Text("Save")
+                                if isSaving {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "square.and.arrow.down")
+                                }
+                                Text(isSaving ? "Saving..." : "Save")
                             }
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color.blue)
+                            .background(isSaving ? Color.gray : Color.blue)
                             .cornerRadius(12)
                         }
+                        .disabled(isSaving)
                         
                         Button(action: { showingSavedScans = true }) {
                             HStack {
@@ -302,14 +309,27 @@ struct ResultsView: View {
         }
     }
     
+    // FIXED: Core Data save function
     private func saveData() {
-        let success = PassportDataStorage.savePassportData(passportData)
-        if success {
-            showingSaveSuccess = true
+        isSaving = true
+        
+        Task {
+            let success = await CoreDataManager.shared.savePassport(passportData)
             
-            // Haptic feedback
-            let successFeedback = UINotificationFeedbackGenerator()
-            successFeedback.notificationOccurred(.success)
+            await MainActor.run {
+                isSaving = false
+                
+                if success {
+                    showingSaveSuccess = true
+                    
+                    // Haptic feedback
+                    let successFeedback = UINotificationFeedbackGenerator()
+                    successFeedback.notificationOccurred(.success)
+                } else {
+                    // Handle error - could show error alert
+                    print("❌ Failed to save passport data")
+                }
+            }
         }
     }
 }
@@ -443,16 +463,26 @@ struct PhotoFullScreenView: View {
     }
 }
 
+// MARK: - Core Data SavedScansView
+
 struct SavedScansView: View {
-    @State private var savedScans = PassportDataStorage.loadSavedScans()
-    let onDismiss: () -> Void // Add dismiss callback
-    @State private var selectedScan: SavedPassportScan?
+    @Environment(\.managedObjectContext) private var viewContext
+    
+    // Use @FetchRequest for Core Data
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)],
+        animation: .default
+    ) private var savedPassports: FetchedResults<SavedPassport>
+    
+    let onDismiss: () -> Void
+    @State private var selectedPassport: SavedPassport?
     @State private var showingFullResults = false
+    @State private var isClearing = false
     
     var body: some View {
         NavigationView {
             List {
-                if savedScans.isEmpty {
+                if savedPassports.isEmpty {
                     VStack {
                         Image(systemName: "folder")
                             .font(.system(size: 50))
@@ -468,62 +498,76 @@ struct SavedScansView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                 } else {
-                    ForEach(savedScans.reversed(), id: \.id) { scan in
-                        SavedScanRow(scan: scan)
+                    ForEach(savedPassports, id: \.objectID) { passport in
+                        SavedPassportRow(passport: passport)
                             .onTapGesture {
-                                selectedScan = scan
+                                selectedPassport = passport
                                 showingFullResults = true
                             }
                     }
-                    .onDelete(perform: deleteScans)
+                    .onDelete(perform: deletePassports)
                 }
             }
-            .navigationTitle("Saved Scans")
+            .navigationTitle("Saved Scans (\(savedPassports.count))")
             .navigationBarItems(
-                leading: Button("Clear All") {
-                    PassportDataStorage.clearAllData()
-                    savedScans.removeAll()
-                }.foregroundColor(.red),
+                leading: Button(isClearing ? "Clearing..." : "Clear All") {
+                    clearAllData()
+                }
+                .foregroundColor(.red)
+                .disabled(isClearing || savedPassports.isEmpty),
                 trailing: Button("Done") {
                     onDismiss()
                 }
             )
         }
         .sheet(isPresented: $showingFullResults) {
-            if let selectedScan = selectedScan,
-               let passportData = selectedScan.completePassportData {
+            if let selectedPassport = selectedPassport,
+               let passportData = selectedPassport.completePassportData {
                 SavedPassportResultsView(
                     passportData: passportData,
-                    scanDate: selectedScan.scanDate,
+                    scanDate: selectedPassport.scanDate ?? Date(),
                     onDismiss: {
                         showingFullResults = false
-                        // Don't set selectedScan to nil, just close the sheet
                     }
                 )
             }
         }
-        .onAppear {
-            savedScans = PassportDataStorage.loadSavedScans()
+    }
+    
+    // Core Data delete function
+    private func deletePassports(offsets: IndexSet) {
+        for index in offsets {
+            let passport = savedPassports[index]
+            
+            Task {
+                await CoreDataManager.shared.deletePassport(passport)
+            }
         }
     }
     
-    private func deleteScans(at offsets: IndexSet) {
-        let reversedScans = savedScans.reversed()
-        for index in offsets {
-            let scanToDelete = Array(reversedScans)[index]
-            PassportDataStorage.deleteScan(scanToDelete)
+    // Core Data clear all function
+    private func clearAllData() {
+        isClearing = true
+        
+        Task {
+            await CoreDataManager.shared.clearAllData()
+            
+            await MainActor.run {
+                isClearing = false
+            }
         }
-        savedScans = PassportDataStorage.loadSavedScans()
     }
 }
 
-struct SavedScanRow: View {
-    let scan: SavedPassportScan
+// Core Data row component
+struct SavedPassportRow: View {
+    let passport: SavedPassport
+    @State private var photo: UIImage?
     
     var body: some View {
         HStack {
             // Photo thumbnail
-            if scan.hasPhoto, let photo = PassportDataStorage.loadPhoto(for: scan.id) {
+            if let photo = photo {
                 Image(uiImage: photo)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -543,15 +587,15 @@ struct SavedScanRow: View {
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(scan.fullName)
+                Text(passport.fullName ?? "Unknown")
                     .font(.headline)
                     .lineLimit(1)
                 
-                Text(CountryFlags.flagWithCode(scan.nationality))
+                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                Text("Doc: \(scan.documentNumber)")
+                Text("Doc: \(passport.documentNumber ?? "Unknown")")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -559,17 +603,23 @@ struct SavedScanRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                if scan.isAuthenticated {
+                if passport.isAuthenticated {
                     Image(systemName: "checkmark.shield.fill")
                         .foregroundColor(.green)
                 }
                 
-                Text(DateFormatter.shortDate.string(from: scan.scanDate))
+                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)
+        .task {
+            // Load photo asynchronously on appear
+            if let passportId = passport.id {
+                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
+            }
+        }
     }
 }
 
@@ -774,127 +824,6 @@ struct SavedPassportResultsView: View {
     }
 }
 
-// MARK: - Country Flag Helper
-
-struct CountryFlags {
-    static func flag(for countryCode: String) -> String {
-        let code = countryCode.uppercased()
-        
-        // Convert country code to flag emoji
-        let flagMap: [String: String] = [
-            "SRB": "🇷🇸", "USA": "🇺🇸", "GBR": "🇬🇧", "DEU": "🇩🇪", "FRA": "🇫🇷",
-            "ITA": "🇮🇹", "ESP": "🇪🇸", "NLD": "🇳🇱", "BEL": "🇧🇪", "AUT": "🇦🇹",
-            "CHE": "🇨🇭", "POL": "🇵🇱", "CZE": "🇨🇿", "SVK": "🇸🇰", "HUN": "🇭🇺",
-            "ROU": "🇷🇴", "BGR": "🇧🇬", "HRV": "🇭🇷", "SVN": "🇸🇮", "BIH": "🇧🇦",
-            "MNE": "🇲🇪", "MKD": "🇲🇰", "ALB": "🇦🇱", "GRC": "🇬🇷", "TUR": "🇹🇷",
-            "CAN": "🇨🇦", "MEX": "🇲🇽", "BRA": "🇧🇷", "ARG": "🇦🇷", "AUS": "🇦🇺",
-            "NZL": "🇳🇿", "JPN": "🇯🇵", "KOR": "🇰🇷", "CHN": "🇨🇳", "IND": "🇮🇳",
-            "RUS": "🇷🇺", "UKR": "🇺🇦", "NOR": "🇳🇴", "SWE": "🇸🇪", "DNK": "🇩🇰",
-            "FIN": "🇫🇮", "ISL": "🇮🇸", "IRL": "🇮🇪", "PRT": "🇵🇹", "LUX": "🇱🇺",
-            "MLT": "🇲🇹", "CYP": "🇨🇾", "EST": "🇪🇪", "LVA": "🇱🇻", "LTU": "🇱🇹"
-        ]
-        
-        return flagMap[code] ?? "🏳️"
-    }
-    
-    static func flagWithCode(_ countryCode: String) -> String {
-        let flag = flag(for: countryCode)
-        return "\(flag) \(countryCode)"
-    }
-}
-
-// MARK: - Helper Functions for Expiry Validation
-
-func parseExpiryDate(_ dateString: String) -> Date? {
-    // Handle different date formats
-    let formatters = [
-        DateFormatter.yyMMdd,
-        DateFormatter.ddMMYYYY,
-        DateFormatter.shortDate
-    ]
-    
-    for formatter in formatters {
-        if let date = formatter.date(from: dateString) {
-            return date
-        }
-    }
-    
-    return nil
-}
-
-func checkPassportValidity(expiryDate: Date) -> PassportValidityStatus {
-    let today = Date()
-    if expiryDate < today {
-        return .expired
-    }
-    
-    let daysLeft = Calendar.current.dateComponents([.day], from: today, to: expiryDate).day ?? 0
-    if daysLeft < 90 {
-        return .warning
-    }
-    
-    return .valid
-}
-
-enum PassportValidityStatus {
-    case valid   // ✅
-    case warning // ⚠️
-    case expired // ❌
-    
-    var icon: String {
-        switch self {
-        case .valid: return "✅"
-        case .warning: return "⚠️"
-        case .expired: return "❌"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .valid: return .green
-        case .warning: return .orange
-        case .expired: return .red
-        }
-    }
-    
-    var description: String {
-        switch self {
-        case .valid: return "Valid"
-        case .warning: return "Expires Soon"
-        case .expired: return "Expired"
-        }
-    }
-}
-
-// MARK: - Date Formatters
-
-extension DateFormatter {
-    static let shortDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter
-    }()
-    
-    static let shortDateTime: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter
-    }()
-    
-    static let yyMMdd: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyMMdd"
-        return formatter
-    }()
-    
-    static let ddMMYYYY: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM/yyyy"
-        return formatter
-    }()
-}
-
 #Preview {
     let sampleMRZ = MRZData(
         documentNumber: "L898902C3",
@@ -932,4 +861,5 @@ extension DateFormatter {
     )
     
     ResultsView(passportData: sampleData, onScanAnother: {}, onHome: {})
+        .environment(\.managedObjectContext, CoreDataManager.shared.context)
 }

@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="1" systemVersion="11A491" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="false" userDefinedModelVersionIdentifier="">
-    <entity name="Item" representedClassName="Item" syncable="YES" codeGenerationType="class">
-        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="PassportPhoto" representedClassName="PassportPhoto" syncable="YES">
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="imageData" optional="YES" attributeType="Binary"/>
+        <relationship name="passport" maxCount="1" deletionRule="Nullify" destinationEntity="SavedPassport" inverseName="photo" inverseEntity="SavedPassport"/>
     </entity>
-    <elements>
-        <element name="Item" positionX="-63" positionY="-18" width="128" height="44"/>
-    </elements>
+    <entity name="SavedPassport" representedClassName="SavedPassport" syncable="YES">
+        <attribute name="additionalInfoJSON" optional="YES" attributeType="String"/>
+        <attribute name="bacSuccess" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="chipAuthSuccess" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="documentNumber" optional="YES" attributeType="String"/>
+        <attribute name="expiryDate" optional="YES" attributeType="String"/>
+        <attribute name="fullName" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isAuthenticated" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="nationality" optional="YES" attributeType="String"/>
+        <attribute name="personalDetailsJSON" optional="YES" attributeType="String"/>
+        <attribute name="rawMRZ" optional="YES" attributeType="String"/>
+        <attribute name="readingErrorsJSON" optional="YES" attributeType="String"/>
+        <attribute name="scanDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="photo" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="PassportPhoto" inverseName="passport" inverseEntity="PassportPhoto"/>
+    </entity>
 </model>
