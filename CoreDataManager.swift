@@ -217,39 +217,42 @@ class CoreDataManager {
     }
     
     private func cleanupOldScans() async {
-        let backgroundContext = self.backgroundContext
-        
-        await backgroundContext.perform {
-            let request: NSFetchRequest<SavedPassport> = SavedPassport.fetchRequest()
-            request.sortDescriptors = [NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)]
-            
-            do {
-                let allPassports = try backgroundContext.fetch(request)
+        await withCheckedContinuation { continuation in
+            backgroundContext.perform {
+                let request: NSFetchRequest<SavedPassport> = SavedPassport.fetchRequest()
+                request.sortDescriptors = [NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)]
                 
-                // Keep only the 50 most recent
-                if allPassports.count > 50 {
-                    let passportsToDelete = Array(allPassports.dropFirst(50))
+                do {
+                    let allPassports = try self.backgroundContext.fetch(request)
                     
-                    for passport in passportsToDelete {
-                        if let photo = passport.photo {
-                            backgroundContext.delete(photo)
+                    // Keep only the 50 most recent
+                    if allPassports.count > 50 {
+                        let passportsToDelete = Array(allPassports.dropFirst(50))
+                        
+                        for passport in passportsToDelete {
+                            if let photo = passport.photo {
+                                self.backgroundContext.delete(photo)
+                            }
+                            self.backgroundContext.delete(passport)
                         }
-                        backgroundContext.delete(passport)
+                        
+                        try self.backgroundContext.save()
+                        print("🧹 Cleaned up \(passportsToDelete.count) old scans")
+                        
+                        // Refresh main context after cleanup
+                        DispatchQueue.main.async {
+                            self.context.refreshAllObjects()
+                        }
                     }
-                    
-                    try backgroundContext.save()
-                    print("🧹 Cleaned up \(passportsToDelete.count) old scans")
-                    
-                    // Refresh main context after cleanup
-                    DispatchQueue.main.async {
-                        self.context.refreshAllObjects()
-                    }
+                } catch {
+                    print("❌ Failed to cleanup old scans: \(error)")
                 }
-            } catch {
-                print("❌ Failed to cleanup old scans: \(error)")
+                
+                continuation.resume()
             }
         }
     }
+
     
     @MainActor
     func clearAllData() async {

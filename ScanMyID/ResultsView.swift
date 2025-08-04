@@ -214,69 +214,41 @@ struct ResultsView: View {
                 }
                 .padding(.horizontal, 20)
                 
-                // Action Buttons
+                // Action Buttons - ONLY Save and Scan Another (Full Width)
                 VStack(spacing: 16) {
-                    HStack(spacing: 12) {
-                        Button(action: saveData) {
-                            HStack {
-                                if isSaving {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "square.and.arrow.down")
-                                }
-                                Text(isSaving ? "Saving..." : "Save")
+                    // Save Button (Top)
+                    Button(action: saveData) {
+                        HStack {
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.down.document")
                             }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(isSaving ? Color.gray : Color.blue)
-                            .cornerRadius(12)
+                            Text(isSaving ? "Saving..." : "Save")
                         }
-                        .disabled(isSaving)
-                        
-                        Button(action: { showingSavedScans = true }) {
-                            HStack {
-                                Image(systemName: "folder")
-                                Text("History")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(isSaving ? Color.gray : Color.blue)
+                        .cornerRadius(12)
                     }
+                    .disabled(isSaving)
                     
-                    HStack(spacing: 12) {
-                        Button(action: onScanAnother) {
-                            HStack {
-                                Image(systemName: "camera")
-                                Text("Scan Another")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
+                    // Scan Another Button (Bottom)
+                    Button(action: onScanAnother) {
+                        HStack {
+                            Image(systemName: "camera.fill")
+                            Text("Scan Another")
                         }
-                        
-                        Button(action: onHome) {
-                            HStack {
-                                Image(systemName: "house")
-                                Text("Home")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
-                        }
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -477,6 +449,8 @@ struct SavedScansView: View {
     @State private var showingFullResults = false
     @State private var isClearing = false
     @State private var contextInitialized = false
+    @State private var showingClearConfirmation = false
+
     
     var body: some View {
         NavigationView {
@@ -510,13 +484,11 @@ struct SavedScansView: View {
             .navigationTitle("Saved Scans (\(savedPassports.count))")
             .navigationBarItems(
                 leading: Button(isClearing ? "Clearing..." : "Clear All") {
-                    clearAllData()
+                    showingClearConfirmation = true
                 }
                 .foregroundColor(.red)
-                .disabled(isClearing || savedPassports.isEmpty),
-                trailing: Button("Done") {
-                    onDismiss()
-                }
+                .disabled(isClearing || savedPassports.isEmpty)
+
             )
         }
         .sheet(isPresented: $showingFullResults) {
@@ -533,6 +505,18 @@ struct SavedScansView: View {
         }
         .onAppear {
             initializeContext()
+        }
+        .confirmationDialog(
+            "Delete All Scan History?",
+            isPresented: $showingClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete All (\(savedPassports.count) scans)", role: .destructive) {
+                clearAllData()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone. All saved passport scans will be permanently deleted!")
         }
     }
     
@@ -950,50 +934,10 @@ struct SavedPassportResultsView: View {
             }
         }
         .background(Color(.systemBackground))
-        .overlay(
-            // Manual Done button since no NavigationView
-            VStack {
-                HStack {
-                    Spacer()
-                    Button("Done") {
-                        onDismiss()
-                    }
-                    .font(.headline)
-                    .foregroundColor(.blue)
-                    .padding(.trailing, 20)
-                    .padding(.top, 10)
-                }
-                Spacer()
-            }
-        )
         .sheet(isPresented: $isPhotoFullScreen) {
             if let photo = passportData.photo {
                 PhotoFullScreenView(photo: photo)
             }
         }
     }
-}
-#Preview {
-    ResultsView(
-        passportData: PassportData(
-            mrzData: MRZData(
-                documentNumber: "123456789",
-                dateOfBirth: "010101",
-                expiryDate: "301201",
-                rawMRZ: "test",
-                documentType: "P",
-                issuingCountry: "USA",
-                nationality: "USA",
-                sex: "M"
-            ),
-            personalDetails: nil,
-            photo: nil,
-            additionalInfo: [:],
-            chipAuthSuccess: false,
-            bacSuccess: false,
-            readingErrors: []
-        ),
-        onScanAnother: {},
-        onHome: {}
-    )
 }

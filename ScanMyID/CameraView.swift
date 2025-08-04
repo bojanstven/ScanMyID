@@ -9,11 +9,12 @@ struct CameraView: View {
     
     var body: some View {
         ZStack {
-            // Camera Preview
+            // Camera Preview - Fullscreen on top, respects bottom safe area for TabView
             CameraPreview(onMRZScanned: onMRZScanned)
-                .ignoresSafeArea()
+                .ignoresSafeArea(.all, edges: .top)  // Only ignore TOP safe area
+                // This keeps TabView visible at bottom while camera goes fullscreen on top
             
-            // Bottom Overlay
+            // Bottom Overlay - Positioned above TabView
             VStack {
                 Spacer()
                 
@@ -40,7 +41,7 @@ struct CameraView: View {
                                 .foregroundColor(.blue)
                         }
                     }
-                    .padding(.horizontal, 20) // This ensures alignment with text below
+                    .padding(.horizontal, 20)
                     
                     Text("Scan the data page of your passport or the back of your ID card")
                         .font(.body)
@@ -54,7 +55,7 @@ struct CameraView: View {
                         .fill(Color.black.opacity(0.65))
                 )
                 .padding(.horizontal, 20)
-                .padding(.bottom, 40)
+                .padding(.bottom, 20)
             }
         }
     }

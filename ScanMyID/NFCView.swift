@@ -1,5 +1,3 @@
-//
-
 import SwiftUI
 import NFCPassportReader
 import CoreNFC
@@ -9,7 +7,7 @@ struct NFCView: View {
     let onComplete: (PassportData) -> Void
     
     @State private var readingState: ReadingState = .ready
-    @State private var statusMessage = "Hold your document flat against your device"
+    @State private var statusMessage = "Hold your phone flat against the top of the passport, with no gap between the two items."
     @State private var progressValue: Double = 0.0
     @State private var passportData: PassportData?
     @State private var errorMessage: String?
@@ -85,19 +83,19 @@ struct NFCView: View {
         
         // Extract personal details using NFCPassportModel convenience properties
         let personalDetails = PersonalDetails(
-            fullName: "\(passportModel.firstName ?? "Unknown") \(passportModel.lastName ?? "Unknown")",
-            surname: passportModel.lastName ?? "Unknown",
-            givenNames: passportModel.firstName ?? "Unknown",
-            nationality: passportModel.nationality ?? parsedMRZ.nationality ?? "Unknown",
-            dateOfBirth: formatDate(passportModel.dateOfBirth ?? parsedMRZ.dateOfBirth),
-            placeOfBirth: passportModel.placeOfBirth,
-            sex: passportModel.gender ?? parsedMRZ.sex ?? "Unknown",
-            documentNumber: passportModel.documentNumber ?? parsedMRZ.documentNumber,
-            documentType: passportModel.documentType ?? "P",
+            fullName: "\(passportModel.firstName) \(passportModel.lastName)",
+            surname: passportModel.lastName,
+            givenNames: passportModel.firstName,
+            nationality: passportModel.nationality.isEmpty ? parsedMRZ.nationality ?? "Unknown" : passportModel.nationality,
+            dateOfBirth: formatDate(passportModel.dateOfBirth.isEmpty ? parsedMRZ.dateOfBirth : passportModel.dateOfBirth),
+            placeOfBirth: passportModel.placeOfBirth,  // This one IS String? (optional)
+            sex: passportModel.gender.isEmpty ? parsedMRZ.sex ?? "Unknown" : passportModel.gender,
+            documentNumber: passportModel.documentNumber.isEmpty ? parsedMRZ.documentNumber : passportModel.documentNumber,
+            documentType: passportModel.documentType,
             issuingCountry: parsedMRZ.issuingCountry ?? "Unknown",
-            expiryDate: formatDate(passportModel.documentExpiryDate ?? parsedMRZ.expiryDate)
+            expiryDate: formatDate(passportModel.documentExpiryDate.isEmpty ? parsedMRZ.expiryDate : passportModel.documentExpiryDate)
         )
-        
+
         print("👤 Name: \(personalDetails.fullName)")
         print("🏳️ Nationality: \(personalDetails.nationality)")
         print("📅 DOB: \(personalDetails.dateOfBirth)")
@@ -144,18 +142,18 @@ struct NFCView: View {
         
         // Log all the raw data we got for debugging
         print("🔍 RAW NFCPassportModel Debug Info:")
-        print("   - firstName: \(passportModel.firstName ?? "nil")")
-        print("   - lastName: \(passportModel.lastName ?? "nil")")
-        print("   - documentNumber: \(passportModel.documentNumber ?? "nil")")
-        print("   - nationality: \(passportModel.nationality ?? "nil")")
-        print("   - dateOfBirth: \(passportModel.dateOfBirth ?? "nil")")
-        print("   - documentExpiryDate: \(passportModel.documentExpiryDate ?? "nil")")
-        print("   - gender: \(passportModel.gender ?? "nil")")
-        print("   - documentType: \(passportModel.documentType ?? "nil")")
-        print("   - issuingCountry: \(parsedMRZ.issuingCountry ?? "nil")")
-        print("   - placeOfBirth: \(passportModel.placeOfBirth ?? "nil")")
-        print("   - personalNumber: \(passportModel.personalNumber ?? "nil")")
-        print("   - phoneNumber: \(passportModel.phoneNumber ?? "nil")")
+        print("   - firstName: \(passportModel.firstName)")
+        print("   - lastName: \(passportModel.lastName)")
+        print("   - documentNumber: \(passportModel.documentNumber)")
+        print("   - nationality: \(passportModel.nationality)")
+        print("   - dateOfBirth: \(passportModel.dateOfBirth)")
+        print("   - documentExpiryDate: \(passportModel.documentExpiryDate)")
+        print("   - gender: \(passportModel.gender)")
+        print("   - documentType: \(passportModel.documentType)")
+        print("   - issuingCountry: \(parsedMRZ.issuingCountry ?? "Unknown")")
+        print("   - placeOfBirth: \(passportModel.placeOfBirth ?? "nil")")  // This one IS optional
+        print("   - personalNumber: \(passportModel.personalNumber ?? "nil")")  // This one IS optional
+        print("   - phoneNumber: \(passportModel.phoneNumber ?? "nil")")  // This one IS optional
         print("   - passportImage: \(passportModel.passportImage != nil ? "✅ Present" : "❌ Nil")")
         print("   - passportCorrectlySigned: \(passportModel.passportCorrectlySigned)")
         print("   - BACStatus: \(passportModel.BACStatus)")
@@ -191,32 +189,17 @@ struct NFCView: View {
         VStack(spacing: 40) {
             Spacer()
             
-            // NFC Animation
-            VStack(spacing: 20) {
-                ZStack {
-                    // Fixed center waves that pulse outward
-                    ForEach(0..<3, id: \.self) { index in
-                        Circle()
-                            .stroke(Color.blue.opacity(0.3), lineWidth: 2)
-                            .frame(width: 60 + CGFloat(index * 30), height: 60 + CGFloat(index * 30))
-                            .scaleEffect(readingState == .connecting || readingState == .authenticating || readingState == .readingPersonalData || readingState == .readingPhoto ? 1.0 + CGFloat(index) * 0.3 : 1.0)
-                            .opacity(readingState == .connecting || readingState == .authenticating || readingState == .readingPersonalData || readingState == .readingPhoto ? 1.0 - CGFloat(index) * 0.3 : 0.5)
-                            .animation(
-                                Animation.easeOut(duration: 1.5)
-                                    .repeatForever(autoreverses: false)
-                                    .delay(Double(index) * 0.3),
-                                value: readingState
-                            )
-                    }
-                    
-                    // Center wave icon (same as Welcome screen)
-                    Image(systemName: "wave.3.up.circle.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(colorForState)
-                        .scaleEffect(readingState == .completed ? 1.3 : 1.0)
-                        .animation(.spring(response: 0.5, dampingFraction: 0.6), value: readingState)
-                }
+            // MARK: - NEW STATIC NFC Section (The Solution)
+
+            
+            VStack(spacing: 30) {
+                // Static NFC icon
+                Image(systemName: "wave.3.up.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(colorForState)
+                
             }
+
             
             // Status and Progress
             VStack(spacing: 16) {
@@ -225,6 +208,7 @@ struct NFCView: View {
                     .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
                     .foregroundColor(readingState == .failed ? .red : .primary)
+                    .padding(.horizontal, 20)
                 
                 if readingState != .ready && readingState != .failed && readingState != .completed {
                     ProgressView(value: progressValue, total: 1.0)

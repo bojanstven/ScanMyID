@@ -2,15 +2,14 @@ import SwiftUI
 
 struct WelcomeView: View {
     let onScanTapped: () -> Void
-    let onHistoryTapped: () -> Void // Add history callback
+    // Remove onHistoryTapped parameter since we're removing the button
     @State private var animationScale: CGFloat = 1.0
     
     // Computed property to get the app version
-        private var appVersion: String {
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-            return version ?? "1.0" // Fallback version if not found
-        }
-    
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        return version ?? "1.0" // Fallback version if not found
+    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -97,41 +96,23 @@ struct WelcomeView: View {
             
             Spacer()
             
-            // Action Buttons
-            VStack(spacing: 16) {
-                // Main Scan Button
-                Button(action: onScanTapped) {
-                    Text("Scan Document")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.blue)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal, 20)
-                
-                // History Button
-                Button(action: onHistoryTapped) {
-                    HStack {
-                        Image(systemName: "folder")
-                        Text("View History")
-                    }
+            // Single Action Button (History button removed)
+            Button(action: onScanTapped) {
+                Text("Scan Document")
                     .font(.headline)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(Color(.systemGray6))
+                    .background(Color.blue)
                     .cornerRadius(12)
-                }
-                .padding(.horizontal, 20)
             }
-            .padding(.bottom, 20)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 40)
         }
         .background(Color(.systemBackground))
     }
 }
 
 #Preview {
-    WelcomeView(onScanTapped: {}, onHistoryTapped: {})
+    WelcomeView(onScanTapped: {})
 }
