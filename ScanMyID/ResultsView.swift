@@ -8,7 +8,7 @@ struct ResultsView: View {
     @State private var showingSaveSuccess = false
     @State private var showingSavedScans = false
     @State private var isPhotoFullScreen = false
-    @State private var isSaving = false // Add this missing state
+    @State private var isSaving = false
     
     var body: some View {
         ScrollView {
@@ -309,7 +309,6 @@ struct ResultsView: View {
         }
     }
     
-    // FIXED: Core Data save function
     private func saveData() {
         isSaving = true
         
@@ -463,21 +462,21 @@ struct PhotoFullScreenView: View {
     }
 }
 
-// MARK: - Core Data SavedScansView
+// MARK: - SavedScansView with Context Fix
 
 struct SavedScansView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
-    // Use @FetchRequest for Core Data
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)],
         animation: .default
     ) private var savedPassports: FetchedResults<SavedPassport>
     
     let onDismiss: () -> Void
-    @State private var selectedPassport: SavedPassport?
+    @State private var selectedPassportID: NSManagedObjectID?
     @State private var showingFullResults = false
     @State private var isClearing = false
+    @State private var contextInitialized = false
     
     var body: some View {
         NavigationView {
@@ -500,9 +499,9 @@ struct SavedScansView: View {
                 } else {
                     ForEach(savedPassports, id: \.objectID) { passport in
                         SavedPassportRow(passport: passport)
+                            .contentShape(Rectangle())
                             .onTapGesture {
-                                selectedPassport = passport
-                                showingFullResults = true
+                                handlePassportTap(passport)
                             }
                     }
                     .onDelete(perform: deletePassports)
@@ -521,52 +520,197 @@ struct SavedScansView: View {
             )
         }
         .sheet(isPresented: $showingFullResults) {
-            if let selectedPassport = selectedPassport,
-               let passportData = selectedPassport.completePassportData {
-                SavedPassportResultsView(
-                    passportData: passportData,
-                    scanDate: selectedPassport.scanDate ?? Date(),
+            if let selectedPassportID = selectedPassportID {
+                FixedPassportResultsView(
+                    passportObjectID: selectedPassportID,
                     onDismiss: {
                         showingFullResults = false
+                        self.selectedPassportID = nil
                     }
                 )
+                .environment(\.managedObjectContext, viewContext)
             }
+        }
+        .onAppear {
+            initializeContext()
         }
     }
     
-    // Core Data delete function
+    private func initializeContext() {
+        guard !contextInitialized && !savedPassports.isEmpty else { return }
+        
+        print("🔄 Initializing Core Data context...")
+        
+        for passport in savedPassports {
+            _ = passport.fullName
+            _ = passport.personalDetailsJSON
+            _ = passport.additionalInfoJSON
+            _ = passport.photo?.imageData
+            viewContext.refresh(passport, mergeChanges: false)
+        }
+        
+        contextInitialized = true
+        print("✅ Context initialized for \(savedPassports.count) passports")
+    }
+    
+    private func handlePassportTap(_ passport: SavedPassport) {
+        print("👆 Passport tapped: \(passport.fullName ?? "Unknown")")
+        
+        if !contextInitialized {
+            initializeContext()
+        }
+        
+        viewContext.refresh(passport, mergeChanges: false)
+        selectedPassportID = passport.objectID
+        showingFullResults = true
+    }
+    
     private func deletePassports(offsets: IndexSet) {
         for index in offsets {
             let passport = savedPassports[index]
-            
             Task {
                 await CoreDataManager.shared.deletePassport(passport)
             }
         }
     }
     
-    // Core Data clear all function
     private func clearAllData() {
         isClearing = true
-        
         Task {
             await CoreDataManager.shared.clearAllData()
-            
             await MainActor.run {
                 isClearing = false
+                contextInitialized = false
             }
         }
     }
 }
 
-// Core Data row component
+struct FixedPassportResultsView: View {
+    let passportObjectID: NSManagedObjectID
+    let onDismiss: () -> Void
+    
+    @Environment(\.managedObjectContext) private var viewContext
+    @State private var passportData: PassportData?
+    @State private var scanDate: Date = Date()
+    @State private var isLoading = true
+    @State private var loadingFailed = false
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    VStack(spacing: 20) {
+                        ProgressView("Loading passport data...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                        
+                        Text("Loading from secure storage...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .navigationTitle("Loading...")
+                    .navigationBarItems(trailing: Button("Cancel") {
+                        onDismiss()
+                    })
+                } else if loadingFailed {
+                    VStack(spacing: 20) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        
+                        Text("Failed to Load Data")
+                            .font(.headline)
+                        
+                        Text("Unable to load passport data from storage.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                        
+                        Button("Try Again") {
+                            loadPassportData()
+                        }
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .padding()
+                    .navigationTitle("Error")
+                    .navigationBarItems(trailing: Button("Done") {
+                        onDismiss()
+                    })
+                } else if let passportData = passportData {
+                    SavedPassportResultsView(
+                        passportData: passportData,
+                        scanDate: scanDate,
+                        onDismiss: onDismiss
+                    )
+                }
+            }
+        }
+        .onAppear {
+            loadPassportData()
+        }
+    }
+    
+    private func loadPassportData() {
+        isLoading = true
+        loadingFailed = false
+        
+        Task {
+            do {
+                let freshPassport = try viewContext.existingObject(with: passportObjectID) as? SavedPassport
+                
+                guard let passport = freshPassport else {
+                    print("❌ Could not get passport object")
+                    await MainActor.run {
+                        loadingFailed = true
+                        isLoading = false
+                    }
+                    return
+                }
+                
+                // Force all relationships to load
+                _ = passport.fullName
+                _ = passport.personalDetailsJSON
+                _ = passport.additionalInfoJSON
+                _ = passport.photo?.imageData
+                
+                viewContext.refresh(passport, mergeChanges: false)
+                
+                let reconstructedData = passport.completePassportData
+                let passportScanDate = passport.scanDate ?? Date()
+                
+                await MainActor.run {
+                    if let data = reconstructedData {
+                        self.passportData = data
+                        self.scanDate = passportScanDate
+                        self.isLoading = false
+                        print("✅ Passport data loaded: \(passport.fullName ?? "Unknown")")
+                    } else {
+                        print("❌ Data reconstruction failed")
+                        self.loadingFailed = true
+                        self.isLoading = false
+                    }
+                }
+                
+            } catch {
+                print("❌ Error loading passport: \(error)")
+                await MainActor.run {
+                    self.loadingFailed = true
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+}
+
 struct SavedPassportRow: View {
     let passport: SavedPassport
     @State private var photo: UIImage?
     
     var body: some View {
         HStack {
-            // Photo thumbnail
             if let photo = photo {
                 Image(uiImage: photo)
                     .resizable()
@@ -614,8 +758,8 @@ struct SavedPassportRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
         .task {
-            // Load photo asynchronously on appear
             if let passportId = passport.id {
                 photo = await CoreDataManager.shared.loadPhoto(for: passportId)
             }
@@ -630,192 +774,198 @@ struct SavedPassportResultsView: View {
     @State private var isPhotoFullScreen = false
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header with scan date
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("Saved Scan")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                            
-                            Text("Scanned: \(DateFormatter.shortDateTime.string(from: scanDate))")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Header - NO NavigationView wrapper, matches direct scan
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Saved Scan")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        
+                        HStack {
+                            Image(systemName: passportData.isAuthenticated ? "checkmark.shield.fill" : "exclamationmark.shield")
+                                .foregroundColor(passportData.isAuthenticated ? .green : .orange)
+                            Text(passportData.isAuthenticated ? "Authenticated" : "Read Only")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(passportData.isAuthenticated ? .green : .orange)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Photo section
+                    if let photo = passportData.photo {
+                        Button(action: { isPhotoFullScreen = true }) {
+                            Image(uiImage: photo)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 80, height: 100)
+                                .clipped()
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.blue, lineWidth: 2)
+                                )
+                        }
+                    } else {
+                        Rectangle()
+                            .fill(Color(.systemGray5))
+                            .frame(width: 80, height: 100)
+                            .cornerRadius(8)
+                            .overlay(
+                                VStack {
+                                    Image(systemName: "person.crop.rectangle")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary)
+                                    Text("No Photo")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20) // Replaces navigation spacing
+                
+                // Personal Information
+                if let personalDetails = passportData.personalDetails {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Personal Information")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        VStack(spacing: 1) {
+                            DataRow(label: "Full Name", value: personalDetails.fullName)
+                            DataRow(label: "Given Names", value: personalDetails.givenNames)
+                            DataRow(label: "Surname", value: personalDetails.surname)
+                            DataRow(label: "Nationality", value: personalDetails.nationality)
+                            DataRow(label: "Date of Birth", value: personalDetails.dateOfBirth)
+                            DataRow(label: "Sex", value: personalDetails.sex)
                             
-                            HStack {
-                                Image(systemName: passportData.isAuthenticated ? "checkmark.shield.fill" : "exclamationmark.shield")
-                                    .foregroundColor(passportData.isAuthenticated ? .green : .orange)
-                                Text(passportData.isAuthenticated ? "Authenticated" : "Read Only")
-                                    .font(.caption)
-                                    .foregroundColor(passportData.isAuthenticated ? .green : .orange)
+                            if let placeOfBirth = personalDetails.placeOfBirth {
+                                DataRow(label: "Place of Birth", value: placeOfBirth)
                             }
                         }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal, 20)
+                }
+                
+                // Document Information
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Document Information")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    VStack(spacing: 1) {
+                        DataRow(label: "Document Type", value: passportData.personalDetails?.documentType ?? passportData.mrzData.documentType ?? "Unknown")
+                        DataRow(label: "Document Number", value: passportData.personalDetails?.documentNumber ?? passportData.mrzData.documentNumber)
+                        DataRow(label: "Issuing Country", value: CountryFlags.flagWithCode(passportData.personalDetails?.issuingCountry ?? passportData.mrzData.issuingCountry ?? "Unknown"))
+                        
+                        ExpiryDateRow(
+                            expiryDateString: passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
+                        )
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+                .padding(.horizontal, 20)
+                
+                // Additional Information (if available)
+                if !passportData.additionalInfo.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Additional Information")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        VStack(spacing: 1) {
+                            ForEach(Array(passportData.additionalInfo.keys.sorted()), id: \.self) { key in
+                                DataRow(label: key, value: passportData.additionalInfo[key] ?? "")
+                            }
+                        }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal, 20)
+                }
+                
+                // Security Information
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Security & Verification")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    VStack(spacing: 1) {
+                        SecurityRow(label: "BAC Authentication", success: passportData.bacSuccess)
+                        SecurityRow(label: "Chip Authentication", success: passportData.chipAuthSuccess)
+                        SecurityRow(label: "Digital Signature", success: passportData.isAuthenticated)
+                        DataRow(label: "Original Scan Date", value: DateFormatter.shortDateTime.string(from: scanDate))
+                        
+                        if !passportData.readingErrors.isEmpty {
+                            ForEach(passportData.readingErrors.prefix(3), id: \.self) { error in
+                                DataRow(label: "Error", value: error)
+                            }
+                        }
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+                .padding(.horizontal, 20)
+                
+                // MRZ Data (Technical)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Technical Data")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
                         
                         Spacer()
                         
-                        // Photo section
-                        if let photo = passportData.photo {
-                            Button(action: { isPhotoFullScreen = true }) {
-                                Image(uiImage: photo)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: 80, height: 100)
-                                    .clipped()
-                                    .cornerRadius(8)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.blue, lineWidth: 2)
-                                    )
-                            }
-                        } else {
-                            Rectangle()
-                                .fill(Color(.systemGray5))
-                                .frame(width: 80, height: 100)
-                                .cornerRadius(8)
-                                .overlay(
-                                    VStack {
-                                        Image(systemName: "person.crop.rectangle")
-                                            .font(.title2)
-                                            .foregroundColor(.secondary)
-                                        Text("No Photo")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                )
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // Personal Information
-                    if let personalDetails = passportData.personalDetails {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Personal Information")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            
-                            VStack(spacing: 1) {
-                                DataRow(label: "Full Name", value: personalDetails.fullName)
-                                DataRow(label: "Given Names", value: personalDetails.givenNames)
-                                DataRow(label: "Surname", value: personalDetails.surname)
-                                DataRow(label: "Nationality", value: personalDetails.nationality)
-                                DataRow(label: "Date of Birth", value: personalDetails.dateOfBirth)
-                                DataRow(label: "Sex", value: personalDetails.sex)
-                                
-                                if let placeOfBirth = personalDetails.placeOfBirth {
-                                    DataRow(label: "Place of Birth", value: placeOfBirth)
-                                }
-                            }
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                        }
-                        .padding(.horizontal, 20)
+                        Text("MRZ")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(4)
                     }
                     
-                    // Document Information
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Document Information")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        VStack(spacing: 1) {
-                            DataRow(label: "Document Type", value: passportData.personalDetails?.documentType ?? passportData.mrzData.documentType ?? "Unknown")
-                            DataRow(label: "Document Number", value: passportData.personalDetails?.documentNumber ?? passportData.mrzData.documentNumber)
-                            DataRow(label: "Issuing Country", value: CountryFlags.flagWithCode(passportData.personalDetails?.issuingCountry ?? passportData.mrzData.issuingCountry ?? "Unknown"))
-                            
-                            // Expiry Date with Validation
-                            ExpiryDateRow(
-                                expiryDateString: passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
-                            )
-                        }
+                    Text(passportData.mrzData.rawMRZ)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.systemGray6))
                         .cornerRadius(8)
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // Additional Information (if available)
-                    if !passportData.additionalInfo.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Additional Information")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            
-                            VStack(spacing: 1) {
-                                ForEach(Array(passportData.additionalInfo.keys.sorted()), id: \.self) { key in
-                                    DataRow(label: key, value: passportData.additionalInfo[key] ?? "")
-                                }
-                            }
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                    
-                    // Security Information
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Security & Verification")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        VStack(spacing: 1) {
-                            SecurityRow(label: "BAC Authentication", success: passportData.bacSuccess)
-                            SecurityRow(label: "Chip Authentication", success: passportData.chipAuthSuccess)
-                            SecurityRow(label: "Digital Signature", success: passportData.isAuthenticated)
-                            DataRow(label: "Original Scan Date", value: DateFormatter.shortDateTime.string(from: scanDate))
-                            
-                            if !passportData.readingErrors.isEmpty {
-                                ForEach(passportData.readingErrors.prefix(3), id: \.self) { error in
-                                    DataRow(label: "Error", value: error)
-                                }
-                            }
-                        }
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // MRZ Data (Technical)
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Technical Data")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            
-                            Spacer()
-                            
-                            Text("MRZ")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                        
-                        Text(passportData.mrzData.rawMRZ)
-                            .font(.system(.caption, design: .monospaced))
-                            .lineLimit(1)
-                            .multilineTextAlignment(.leading)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                            .minimumScaleFactor(0.5)
-                            .allowsTightening(true)
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    Spacer(minLength: 40)
+                        .minimumScaleFactor(0.5)
+                        .allowsTightening(true)
                 }
+                .padding(.horizontal, 20)
+                
+                Spacer(minLength: 40)
             }
-            .navigationTitle("Passport Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("Done") {
-                onDismiss()
-            })
         }
+        .background(Color(.systemBackground))
+        .overlay(
+            // Manual Done button since no NavigationView
+            VStack {
+                HStack {
+                    Spacer()
+                    Button("Done") {
+                        onDismiss()
+                    }
+                    .font(.headline)
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 20)
+                    .padding(.top, 10)
+                }
+                Spacer()
+            }
+        )
         .sheet(isPresented: $isPhotoFullScreen) {
             if let photo = passportData.photo {
                 PhotoFullScreenView(photo: photo)
@@ -823,43 +973,27 @@ struct SavedPassportResultsView: View {
         }
     }
 }
-
 #Preview {
-    let sampleMRZ = MRZData(
-        documentNumber: "L898902C3",
-        dateOfBirth: "740812",
-        expiryDate: "120415",
-        rawMRZ: "L898902C3UTO7408122F1204159ZE184226B<<<<<10",
-        documentType: "P",
-        issuingCountry: "UTO",
-        nationality: "UTO",
-        sex: "F"
+    ResultsView(
+        passportData: PassportData(
+            mrzData: MRZData(
+                documentNumber: "123456789",
+                dateOfBirth: "010101",
+                expiryDate: "301201",
+                rawMRZ: "test",
+                documentType: "P",
+                issuingCountry: "USA",
+                nationality: "USA",
+                sex: "M"
+            ),
+            personalDetails: nil,
+            photo: nil,
+            additionalInfo: [:],
+            chipAuthSuccess: false,
+            bacSuccess: false,
+            readingErrors: []
+        ),
+        onScanAnother: {},
+        onHome: {}
     )
-    
-    let samplePersonal = PersonalDetails(
-        fullName: "ANNA MARIA ERIKSSON",
-        surname: "ERIKSSON",
-        givenNames: "ANNA MARIA",
-        nationality: "UTO",
-        dateOfBirth: "12/08/1974",
-        placeOfBirth: "STOCKHOLM",
-        sex: "F",
-        documentNumber: "L898902C3",
-        documentType: "P",
-        issuingCountry: "UTO",
-        expiryDate: "15/04/2012"
-    )
-    
-    let sampleData = PassportData(
-        mrzData: sampleMRZ,
-        personalDetails: samplePersonal,
-        photo: nil,
-        additionalInfo: ["Issuing Authority": "Swedish Police"],
-        chipAuthSuccess: true,
-        bacSuccess: true,
-        readingErrors: []
-    )
-    
-    ResultsView(passportData: sampleData, onScanAnother: {}, onHome: {})
-        .environment(\.managedObjectContext, CoreDataManager.shared.context)
 }
