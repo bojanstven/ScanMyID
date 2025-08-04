@@ -5,6 +5,13 @@ struct WelcomeView: View {
     let onHistoryTapped: () -> Void // Add history callback
     @State private var animationScale: CGFloat = 1.0
     
+    // Computed property to get the app version
+        private var appVersion: String {
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+            return version ?? "1.0" // Fallback version if not found
+        }
+    
+    
     var body: some View {
         VStack(spacing: 20) {
             
@@ -23,7 +30,7 @@ struct WelcomeView: View {
                     }
                     
                     // Version subtitle
-                    Text("v1.2")
+                    Text("v\(appVersion)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fontWeight(.medium)
