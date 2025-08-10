@@ -13,7 +13,7 @@ struct ResultsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header
+                // Header with Auth Overlay on Photo
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Scan Results")
@@ -31,68 +31,69 @@ struct ResultsView: View {
                     
                     Spacer()
                     
-                    // Photo section
-                    if let photo = passportData.photo {
-                        Button(action: { isPhotoFullScreen = true }) {
-                            Image(uiImage: photo)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
+                    // Photo section with authentication overlay - right aligned to screen edge
+                    ZStack(alignment: .bottomLeading) {
+                        if let photo = passportData.photo {
+                            Button(action: { isPhotoFullScreen = true }) {
+                                Image(uiImage: photo)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 80, height: 100)
+                                    .clipped()
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.blue, lineWidth: 2)
+                                    )
+                            }
+                            
+                            // Authentication overlay - lower left corner
+                            CryptoAuthOverlay(passportData: passportData)
+                                .offset(x: 4, y: -4)
+                        } else {
+                            Rectangle()
+                                .fill(Color(.systemGray5))
                                 .frame(width: 80, height: 100)
-                                .clipped()
                                 .cornerRadius(8)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.blue, lineWidth: 2)
+                                    VStack {
+                                        Image(systemName: "person.crop.rectangle")
+                                            .font(.title2)
+                                            .foregroundColor(.secondary)
+                                        Text("No Photo")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 )
                         }
-                    } else {
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .frame(width: 80, height: 100)
-                            .cornerRadius(8)
-                            .overlay(
-                                VStack {
-                                    Image(systemName: "person.crop.rectangle")
-                                        .font(.title2)
-                                        .foregroundColor(.secondary)
-                                    Text("No Photo")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            )
                     }
                 }
                 .padding(.horizontal, 20)
                 
-                // Expiry Warning Banner (if needed)
+                // Always show Expiry Banner for any status
                 let expiryDateString = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                 if let expiryDate = parseExpiryDate(expiryDateString) {
                     let status = checkPassportValidity(expiryDate: expiryDate)
-                    if status == .expired || status == .warning {
-                        HStack {
-                            Image(systemName: status == .expired ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill")
+                    HStack {
+                        Image(systemName: status == .expired ? "exclamationmark.triangle.fill" : status == .expiresSoon ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .foregroundColor(status.color)
+                        
+                        VStack(alignment: .leading) {
+                            Text(status == .expired ? "Passport Expired" : status == .expiresSoon ? "Passport Expires Soon" : "Passport Valid")
+                                .font(.headline)
                                 .foregroundColor(status.color)
                             
-                            VStack(alignment: .leading) {
-                                Text(status == .expired ? "Passport Expired" : "Passport Expires Soon")
-                                    .font(.headline)
-                                    .foregroundColor(status.color)
-                                
-                                if status == .warning,
-                                   let days = Calendar.current.dateComponents([.day], from: Date(), to: expiryDate).day {
-                                    Text("Expires in \(days) days")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            
-                            Spacer()
+                            Text(ExpiryFormatter.formatTimeRemaining(from: expiryDate))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        .padding()
-                        .background(status.color.opacity(0.1))
-                        .cornerRadius(8)
-                        .padding(.horizontal, 20)
+                        
+                        Spacer()
                     }
+                    .padding()
+                    .background(status.color.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding(.horizontal, 20)
                 }
                 
                 // Personal Information
@@ -131,8 +132,8 @@ struct ResultsView: View {
                         DataRow(label: "Document Number", value: passportData.personalDetails?.documentNumber ?? passportData.mrzData.documentNumber)
                         DataRow(label: "Issuing Country", value: CountryFlags.flagWithCode(passportData.personalDetails?.issuingCountry ?? passportData.mrzData.issuingCountry ?? "Unknown"))
                         
-                        // Expiry Date with Validation
-                        ExpiryDateRow(
+                        // Enhanced Expiry Date Row with new formatting
+                        EnhancedExpiryDateRow(
                             expiryDateString: passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                         )
                     }
@@ -169,7 +170,7 @@ struct ResultsView: View {
                         SecurityRow(label: "BAC Authentication", success: passportData.bacSuccess)
                         SecurityRow(label: "Chip Authentication", success: passportData.chipAuthSuccess)
                         SecurityRow(label: "Digital Signature", success: passportData.isAuthenticated)
-                        DataRow(label: "Reading Date", value: DateFormatter.shortDateTime.string(from: passportData.readingDate))
+                        DataRow(label: "Reading Date", value: DateFormatter.ddMMyyyy.string(from: passportData.readingDate))
                         
                         if !passportData.readingErrors.isEmpty {
                             ForEach(passportData.readingErrors.prefix(3), id: \.self) { error in
@@ -305,6 +306,96 @@ struct ResultsView: View {
     }
 }
 
+// MARK: - Crypto Authentication Overlay Component
+
+struct CryptoAuthOverlay: View {
+    let passportData: PassportData
+    
+    private var authStatus: CryptoAuthStatus {
+        return determineCryptoAuthStatus(passportData: passportData)
+    }
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(authStatus.color)
+                .frame(width: 20, height: 20)
+            
+            Image(systemName: authStatus.icon)
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+        }
+        .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 1)
+    }
+}
+
+// MARK: - Enhanced Expiry Date Row with New Formatting
+
+struct EnhancedExpiryDateRow: View {
+    let expiryDateString: String
+    
+    private var validityStatus: PassportValidityStatus {
+        guard let expiryDate = parseExpiryDate(expiryDateString) else {
+            return .expired // If we can't parse, assume expired
+        }
+        return checkPassportValidity(expiryDate: expiryDate)
+    }
+    
+    private var timeRemainingText: String {
+        guard let expiryDate = parseExpiryDate(expiryDateString) else {
+            return "Invalid Date"
+        }
+        return ExpiryFormatter.formatTimeRemaining(from: expiryDate)
+    }
+    
+    var body: some View {
+        VStack(spacing: 1) {
+            // Main expiry date row
+            HStack {
+                Text("Expiry Date")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                HStack(spacing: 4) {
+                    Text(validityStatus.icon)
+                    Text(expiryDateString)
+                        .fontWeight(.medium)
+                        .foregroundColor(validityStatus.color)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+            
+            // Enhanced validity status row with new time formatting
+            HStack {
+                Text("Validity Status")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(validityStatus.description)
+                            .fontWeight(.medium)
+                            .foregroundColor(validityStatus.color)
+                    }
+                    
+                    Text(timeRemainingText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+        }
+    }
+}
+
+// Keep the original ExpiryDateRow for backward compatibility
 struct ExpiryDateRow: View {
     let expiryDateString: String
     
@@ -397,7 +488,7 @@ struct SecurityRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack {
-                Image(systemName: success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                Image(systemName: success ? "checkmark.shield.fill" : "xmark.shield.fill")
                     .foregroundColor(success ? .green : .red)
                 Text(success ? "Verified" : "Failed")
                     .fontWeight(.medium)
@@ -414,27 +505,36 @@ struct SecurityRow: View {
 struct PhotoFullScreenView: View {
     let photo: UIImage
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         NavigationView {
             ZStack {
-                Color.black.ignoresSafeArea()
+                // Dynamic background based on color scheme
+                (colorScheme == .dark ? Color.black : Color.white)
+                    .ignoresSafeArea()
                 
                 Image(uiImage: photo)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .padding()
+                    .padding(.horizontal, 8) // Minimal horizontal padding
+                    .padding(.vertical, 0)   // No vertical padding for edge-to-edge
             }
             .navigationTitle("Biometric Photo")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("Done") {
-                presentationMode.wrappedValue.dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                    .foregroundColor(colorScheme == .dark ? .white : .blue)
+                }
+            }
         }
     }
 }
 
-// MARK: - SavedScansView with Context Fix
+// MARK: - Enhanced SavedScansView with Fixed Clear Button and Expiry Focus
 
 struct SavedScansView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -472,7 +572,7 @@ struct SavedScansView: View {
                     .padding()
                 } else {
                     ForEach(savedPassports, id: \.objectID) { passport in
-                        SavedPassportRow(passport: passport)
+                        EnhancedSavedPassportRow(passport: passport)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 handlePassportTap(passport)
@@ -482,14 +582,15 @@ struct SavedScansView: View {
                 }
             }
             .navigationTitle("Saved Scans (\(savedPassports.count))")
-            .navigationBarItems(
-                leading: Button(isClearing ? "Clearing..." : "Clear All") {
-                    showingClearConfirmation = true
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(isClearing ? "Clearing..." : "Clear All") {
+                        showingClearConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    .disabled(isClearing || savedPassports.isEmpty)
                 }
-                .foregroundColor(.red)
-                .disabled(isClearing || savedPassports.isEmpty)
-
-            )
+            }
         }
         .sheet(isPresented: $showingFullResults) {
             if let selectedPassportID = selectedPassportID {
@@ -570,6 +671,159 @@ struct SavedScansView: View {
     }
 }
 
+// MARK: - Enhanced Saved Passport Row with Expiry Focus
+
+struct EnhancedSavedPassportRow: View {
+    let passport: SavedPassport
+    @State private var photo: UIImage?
+    
+    private var validityStatus: PassportValidityStatus {
+        guard let expiryDateString = passport.expiryDate,
+              let expiryDate = parseExpiryDate(expiryDateString) else {
+            return .expired
+        }
+        return checkPassportValidity(expiryDate: expiryDate)
+    }
+    
+    private var timeRemainingText: String {
+        guard let expiryDateString = passport.expiryDate,
+              let expiryDate = parseExpiryDate(expiryDateString) else {
+            return "Invalid"
+        }
+        return ExpiryFormatter.formatTimeRemainingCompact(from: expiryDate)
+    }
+    
+    var body: some View {
+        HStack(spacing: 8) { // Reduced spacing for bigger content
+            // Photo - reduced margin for bigger size
+            if let photo = photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 44, height: 54) // Slightly bigger
+                    .clipped()
+                    .cornerRadius(4)
+            } else {
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .frame(width: 44, height: 54) // Slightly bigger
+                    .cornerRadius(4)
+                    .overlay(
+                        Image(systemName: "person.crop.rectangle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    )
+            }
+            
+            // Text content - restored original positioning
+            VStack(alignment: .leading, spacing: 2) { // Reduced spacing
+                Text(passport.fullName ?? "Unknown")
+                    .font(.headline)
+                    .lineLimit(1)
+                
+                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("Doc: \(passport.documentNumber ?? "Unknown")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                // Removed scan date - confusing and not useful
+            }
+            
+            Spacer()
+            
+            // Right side: Show expiry status with full words
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text(validityStatus.icon)
+                        .font(.caption)
+                    Text(validityStatus.description)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(validityStatus.color)
+                }
+                
+                Text(timeRemainingText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+        .padding(.vertical, 2) // Reduced padding for tighter rows
+        .contentShape(Rectangle())
+        .task {
+            if let passportId = passport.id {
+                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
+            }
+        }
+    }
+}
+
+// Keep the original SavedPassportRow for backward compatibility
+struct SavedPassportRow: View {
+    let passport: SavedPassport
+    @State private var photo: UIImage?
+    
+    var body: some View {
+        HStack {
+            if let photo = photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 50)
+                    .clipped()
+                    .cornerRadius(4)
+            } else {
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .frame(width: 40, height: 50)
+                    .cornerRadius(4)
+                    .overlay(
+                        Image(systemName: "person.crop.rectangle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    )
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(passport.fullName ?? "Unknown")
+                    .font(.headline)
+                    .lineLimit(1)
+                
+                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("Doc: \(passport.documentNumber ?? "Unknown")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                if passport.isAuthenticated {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                }
+                
+                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .task {
+            if let passportId = passport.id {
+                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
+            }
+        }
+    }
+}
+
 struct FixedPassportResultsView: View {
     let passportObjectID: NSManagedObjectID
     let onDismiss: () -> Void
@@ -593,9 +847,13 @@ struct FixedPassportResultsView: View {
                             .foregroundColor(.secondary)
                     }
                     .navigationTitle("Loading...")
-                    .navigationBarItems(trailing: Button("Cancel") {
-                        onDismiss()
-                    })
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Cancel") {
+                                onDismiss()
+                            }
+                        }
+                    }
                 } else if loadingFailed {
                     VStack(spacing: 20) {
                         Image(systemName: "exclamationmark.triangle")
@@ -620,9 +878,13 @@ struct FixedPassportResultsView: View {
                     }
                     .padding()
                     .navigationTitle("Error")
-                    .navigationBarItems(trailing: Button("Done") {
-                        onDismiss()
-                    })
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                onDismiss()
+                            }
+                        }
+                    }
                 } else if let passportData = passportData {
                     SavedPassportResultsView(
                         passportData: passportData,
@@ -689,68 +951,6 @@ struct FixedPassportResultsView: View {
     }
 }
 
-struct SavedPassportRow: View {
-    let passport: SavedPassport
-    @State private var photo: UIImage?
-    
-    var body: some View {
-        HStack {
-            if let photo = photo {
-                Image(uiImage: photo)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 40, height: 50)
-                    .clipped()
-                    .cornerRadius(4)
-            } else {
-                Rectangle()
-                    .fill(Color(.systemGray5))
-                    .frame(width: 40, height: 50)
-                    .cornerRadius(4)
-                    .overlay(
-                        Image(systemName: "person.crop.rectangle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(passport.fullName ?? "Unknown")
-                    .font(.headline)
-                    .lineLimit(1)
-                
-                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Text("Doc: \(passport.documentNumber ?? "Unknown")")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                if passport.isAuthenticated {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
-                }
-                
-                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .task {
-            if let passportId = passport.id {
-                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
-            }
-        }
-    }
-}
-
 struct SavedPassportResultsView: View {
     let passportData: PassportData
     let scanDate: Date
@@ -760,7 +960,7 @@ struct SavedPassportResultsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header - NO NavigationView wrapper, matches direct scan
+                // Header - right-aligned photo with auth overlay
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Saved Scan")
@@ -778,39 +978,71 @@ struct SavedPassportResultsView: View {
                     
                     Spacer()
                     
-                    // Photo section
-                    if let photo = passportData.photo {
-                        Button(action: { isPhotoFullScreen = true }) {
-                            Image(uiImage: photo)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
+                    // Photo section with auth overlay - right aligned to screen edge
+                    ZStack(alignment: .bottomLeading) {
+                        if let photo = passportData.photo {
+                            Button(action: { isPhotoFullScreen = true }) {
+                                Image(uiImage: photo)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 80, height: 100)
+                                    .clipped()
+                                    .cornerRadius(8)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.blue, lineWidth: 2)
+                                    )
+                            }
+                            
+                            // Authentication overlay - lower left corner
+                            CryptoAuthOverlay(passportData: passportData)
+                                .offset(x: 4, y: -4)
+                        } else {
+                            Rectangle()
+                                .fill(Color(.systemGray5))
                                 .frame(width: 80, height: 100)
-                                .clipped()
                                 .cornerRadius(8)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.blue, lineWidth: 2)
+                                    VStack {
+                                        Image(systemName: "person.crop.rectangle")
+                                            .font(.title2)
+                                            .foregroundColor(.secondary)
+                                        Text("No Photo")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 )
                         }
-                    } else {
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .frame(width: 80, height: 100)
-                            .cornerRadius(8)
-                            .overlay(
-                                VStack {
-                                    Image(systemName: "person.crop.rectangle")
-                                        .font(.title2)
-                                        .foregroundColor(.secondary)
-                                    Text("No Photo")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            )
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20) // Replaces navigation spacing
+                
+                // Always show Expiry Banner for any status
+                let expiryDateString = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
+                if let expiryDate = parseExpiryDate(expiryDateString) {
+                    let status = checkPassportValidity(expiryDate: expiryDate)
+                    HStack {
+                        Image(systemName: status == .expired ? "exclamationmark.triangle.fill" : status == .expiresSoon ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .foregroundColor(status.color)
+                        
+                        VStack(alignment: .leading) {
+                            Text(status == .expired ? "Passport Expired" : status == .expiresSoon ? "Passport Expires Soon" : "Passport Valid")
+                                .font(.headline)
+                                .foregroundColor(status.color)
+                            
+                            Text(ExpiryFormatter.formatTimeRemaining(from: expiryDate))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding()
+                    .background(status.color.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding(.horizontal, 20)
+                }
                 
                 // Personal Information
                 if let personalDetails = passportData.personalDetails {
@@ -848,7 +1080,7 @@ struct SavedPassportResultsView: View {
                         DataRow(label: "Document Number", value: passportData.personalDetails?.documentNumber ?? passportData.mrzData.documentNumber)
                         DataRow(label: "Issuing Country", value: CountryFlags.flagWithCode(passportData.personalDetails?.issuingCountry ?? passportData.mrzData.issuingCountry ?? "Unknown"))
                         
-                        ExpiryDateRow(
+                        EnhancedExpiryDateRow(
                             expiryDateString: passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                         )
                     }
@@ -885,7 +1117,7 @@ struct SavedPassportResultsView: View {
                         SecurityRow(label: "BAC Authentication", success: passportData.bacSuccess)
                         SecurityRow(label: "Chip Authentication", success: passportData.chipAuthSuccess)
                         SecurityRow(label: "Digital Signature", success: passportData.isAuthenticated)
-                        DataRow(label: "Original Scan Date", value: DateFormatter.shortDateTime.string(from: scanDate))
+                        DataRow(label: "Original Scan Date", value: DateFormatter.ddMMyyyy.string(from: scanDate))
                         
                         if !passportData.readingErrors.isEmpty {
                             ForEach(passportData.readingErrors.prefix(3), id: \.self) { error in

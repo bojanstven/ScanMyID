@@ -55,17 +55,17 @@ struct PassportData {
     var readingDate: Date { Date() }
 }
 
-// MARK: - Passport Expiry Validation
+// MARK: - Enhanced Passport Expiry Validation with Crypto Authentication
 
 enum PassportValidityStatus {
-    case valid   // ✅
-    case warning // ⚠️
-    case expired // ❌
+    case valid          // ✅ More than 3 months remaining
+    case expiresSoon     // ⚠️ Less than 3 months remaining
+    case expired        // ❌ Past expiry date
     
     var icon: String {
         switch self {
         case .valid: return "✅"
-        case .warning: return "⚠️"
+        case .expiresSoon: return "⚠️"
         case .expired: return "❌"
         }
     }
@@ -73,7 +73,7 @@ enum PassportValidityStatus {
     var color: Color {
         switch self {
         case .valid: return .green
-        case .warning: return .orange
+        case .expiresSoon: return .orange
         case .expired: return .red
         }
     }
@@ -81,8 +81,148 @@ enum PassportValidityStatus {
     var description: String {
         switch self {
         case .valid: return "Valid"
-        case .warning: return "Expires Soon"
+        case .expiresSoon: return "Expires Soon"
         case .expired: return "Expired"
+        }
+    }
+}
+
+// MARK: - Crypto Authentication Status for Overlay
+
+enum CryptoAuthStatus {
+    case verified       // ✅ DG1 hash validated successfully
+    case unverified     // ⚠️ Cannot validate DG1 hash (rare)
+    case compromised    // ❌ Major crypto failure/tampering detected
+    
+    var icon: String {
+        switch self {
+        case .verified: return "checkmark.shield.fill"
+        case .unverified: return "questionmark.shield.fill"
+        case .compromised: return "xmark.shield.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .verified: return .green
+        case .unverified: return .yellow
+        case .compromised: return .red
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .verified: return "Verified"
+        case .unverified: return "Unverified"
+        case .compromised: return "Compromised"
+        }
+    }
+}
+
+// MARK: - Enhanced Time Formatting Functions
+
+struct ExpiryFormatter {
+    
+    /// Enhanced human-readable time formatting with full words
+    /// Examples: "2 years 3 months", "45 days", "Expired (-1 year 2 months)", "Expired (-234 days)"
+    static func formatTimeRemaining(from expiryDate: Date) -> String {
+        let today = Date()
+        let calendar = Calendar.current
+        
+        if expiryDate >= today {
+            // Future date - time remaining
+            let components = calendar.dateComponents([.year, .month, .day], from: today, to: expiryDate)
+            
+            let years = components.year ?? 0
+            let months = components.month ?? 0
+            let days = components.day ?? 0
+            
+            // For periods over 2 years, show years and months
+            if years >= 2 {
+                let yearText = years == 1 ? "year" : "years"
+                let monthText = months == 1 ? "month" : "months"
+                return "\(years) \(yearText) \(months) \(monthText)"
+            }
+            // For periods over 6 months, show months and days
+            else if years >= 1 || months >= 6 {
+                let totalMonths = years * 12 + months
+                let monthText = totalMonths == 1 ? "month" : "months"
+                let dayText = days == 1 ? "day" : "days"
+                return "\(totalMonths) \(monthText) \(days) \(dayText)"
+            }
+            // For shorter periods, show total days
+            else {
+                let totalDays = calendar.dateComponents([.day], from: today, to: expiryDate).day ?? 0
+                let dayText = totalDays == 1 ? "day" : "days"
+                return "\(totalDays) \(dayText)"
+            }
+        } else {
+            // Past date - expired
+            let components = calendar.dateComponents([.year, .month, .day], from: expiryDate, to: today)
+            
+            let years = components.year ?? 0
+            let months = components.month ?? 0
+            let days = components.day ?? 0
+            
+            // For expired periods over 2 years
+            if years >= 2 {
+                let yearText = years == 1 ? "year" : "years"
+                let monthText = months == 1 ? "month" : "months"
+                return "Expired (-\(years) \(yearText) \(months) \(monthText))"
+            }
+            // For expired periods over 6 months
+            else if years >= 1 || months >= 6 {
+                let totalMonths = years * 12 + months
+                let monthText = totalMonths == 1 ? "month" : "months"
+                return "Expired (-\(totalMonths) \(monthText))"
+            }
+            // For recently expired (less than 6 months)
+            else {
+                let totalDays = calendar.dateComponents([.day], from: expiryDate, to: today).day ?? 0
+                let dayText = totalDays == 1 ? "day" : "days"
+                return "Expired (-\(totalDays) \(dayText))"
+            }
+        }
+    }
+    
+    /// Compact format for UI constraints with abbreviations for rows
+    /// Examples: "2y 3m", "45 days", "-1y 2m", "-234 days"
+    static func formatTimeRemainingCompact(from expiryDate: Date) -> String {
+        let today = Date()
+        let calendar = Calendar.current
+        
+        if expiryDate >= today {
+            let components = calendar.dateComponents([.year, .month, .day], from: today, to: expiryDate)
+            
+            let years = components.year ?? 0
+            let months = components.month ?? 0
+            
+            if years >= 1 {
+                return "\(years)y \(months)m"
+            } else if months >= 3 {
+                let monthText = months == 1 ? "month" : "months"
+                return "\(months) \(monthText)"
+            } else {
+                let totalDays = calendar.dateComponents([.day], from: today, to: expiryDate).day ?? 0
+                let dayText = totalDays == 1 ? "day" : "days"
+                return "\(totalDays) \(dayText)"
+            }
+        } else {
+            let components = calendar.dateComponents([.year, .month, .day], from: expiryDate, to: today)
+            
+            let years = components.year ?? 0
+            let months = components.month ?? 0
+            
+            if years >= 1 {
+                return "-\(years)y \(months)m"
+            } else if months >= 3 {
+                let monthText = months == 1 ? "month" : "months"
+                return "-\(months) \(monthText)"
+            } else {
+                let totalDays = calendar.dateComponents([.day], from: expiryDate, to: today).day ?? 0
+                let dayText = totalDays == 1 ? "day" : "days"
+                return "-\(totalDays) \(dayText)"
+            }
         }
     }
 }
@@ -94,11 +234,34 @@ func checkPassportValidity(expiryDate: Date) -> PassportValidityStatus {
     }
     
     let daysLeft = Calendar.current.dateComponents([.day], from: today, to: expiryDate).day ?? 0
-    if daysLeft < 90 {
-        return .warning
+    if daysLeft < 90 { // Less than 3 months
+        return .expiresSoon
     }
     
     return .valid
+}
+
+/// Determine crypto authentication status based on passport data
+func determineCryptoAuthStatus(passportData: PassportData) -> CryptoAuthStatus {
+    // Current logic: Green if DG1 hash is verified (chipAuthSuccess)
+    // Yellow if BAC worked but chip auth failed (rare case)
+    // Red if major failure (for future digital signature validation)
+    
+    if passportData.chipAuthSuccess {
+        return .verified
+    } else if passportData.bacSuccess {
+        // BAC worked but chip authentication failed - rare but possible
+        return .unverified
+    } else {
+        // Complete failure - could indicate tampering or fake document
+        // TODO: When digital signature verification is implemented,
+        // this should also check:
+        // - SOD certificate chain validation against master list
+        // - Country certificate validation against CSCA master list
+        // - Digital signature verification of document security object
+        // - Anti-cloning measures and active authentication
+        return .compromised
+    }
 }
 
 // Helper to parse date from MRZ format (YYMMDD)
@@ -106,7 +269,7 @@ func parseExpiryDate(_ dateString: String) -> Date? {
     // Handle different date formats
     let formatters = [
         DateFormatter.yyMMdd,
-        DateFormatter.ddMMYYYY,
+        DateFormatter.ddMMyyyy,
         DateFormatter.shortDate
     ]
     
@@ -495,7 +658,7 @@ extension DateFormatter {
         return formatter
     }()
     
-    static let ddMMYYYY: DateFormatter = {
+    static let ddMMyyyy: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd/MM/yyyy"
         return formatter

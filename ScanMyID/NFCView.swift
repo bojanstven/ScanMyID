@@ -213,6 +213,7 @@ struct NFCView: View {
         print("📋 Additional Info: \(additionalInfo.count) fields")
         print("❌ Verification Errors: \(finalPassportData.readingErrors.count)")
         
+        /*
         // Log all the raw data we got for debugging
         print("🔍 RAW NFCPassportModel Debug Info:")
         print("   - firstName: \(passportModel.firstName)")
@@ -230,7 +231,9 @@ struct NFCView: View {
         print("   - passportImage: \(passportModel.passportImage != nil ? "✅ Present" : "❌ Nil")")
         print("   - passportCorrectlySigned: \(passportModel.passportCorrectlySigned)")
         print("   - BACStatus: \(passportModel.BACStatus)")
-        
+        */
+         
+         
         // Haptic feedback for success
         let successFeedback = UINotificationFeedbackGenerator()
         successFeedback.notificationOccurred(.success)
@@ -389,6 +392,7 @@ struct NFCView: View {
         
         // Create passport reader
         let passportReader = PassportReader()
+
         
         // Read all available data groups for comprehensive extraction
         Task {
