@@ -70,12 +70,14 @@ struct ResultsView: View {
                 }
                 .padding(.horizontal, 20)
                 
-                // Always show Expiry Banner for any status
+                // Always show Expiry Banner for any status - UPDATED ICONS
                 let expiryDateString = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                 if let expiryDate = parseExpiryDate(expiryDateString) {
                     let status = checkPassportValidity(expiryDate: expiryDate)
                     HStack {
-                        Image(systemName: status == .expired ? "exclamationmark.triangle.fill" : status == .expiresSoon ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        // UPDATED: Professional icons instead of emoji
+                        Image(systemName: status == .expired ? "xmark.circle.fill" : status == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .font(.title2)
                             .foregroundColor(status.color)
                         
                         VStack(alignment: .leading) {
@@ -329,7 +331,7 @@ struct CryptoAuthOverlay: View {
     }
 }
 
-// MARK: - Enhanced Expiry Date Row with New Formatting
+// MARK: - Enhanced Expiry Date Row with New Formatting and UPDATED ICONS
 
 struct EnhancedExpiryDateRow: View {
     let expiryDateString: String
@@ -350,14 +352,18 @@ struct EnhancedExpiryDateRow: View {
     
     var body: some View {
         VStack(spacing: 1) {
-            // Main expiry date row
+            // Main expiry date row - UPDATED ICON
             HStack {
                 Text("Expiry Date")
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
                 HStack(spacing: 4) {
-                    Text(validityStatus.icon)
+                    // UPDATED: Professional square icons instead of emoji
+                    Image(systemName: validityStatus == .expired ? "xmark.square.fill" : validityStatus == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
+                        .font(.body)
+                        .foregroundColor(validityStatus.color)
+                    
                     Text(expiryDateString)
                         .fontWeight(.medium)
                         .foregroundColor(validityStatus.color)
@@ -592,6 +598,8 @@ struct SavedScansView: View {
                 }
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle())
+
         .sheet(isPresented: $showingFullResults) {
             if let selectedPassportID = selectedPassportID {
                 FixedPassportResultsView(
@@ -671,7 +679,7 @@ struct SavedScansView: View {
     }
 }
 
-// MARK: - Enhanced Saved Passport Row with Expiry Focus
+// MARK: - Enhanced Saved Passport Row with Expiry Focus and UPDATED ICONS
 
 struct EnhancedSavedPassportRow: View {
     let passport: SavedPassport
@@ -734,11 +742,14 @@ struct EnhancedSavedPassportRow: View {
             
             Spacer()
             
-            // Right side: Show expiry status with full words
+            // Right side: Show expiry status with professional icons
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 4) {
-                    Text(validityStatus.icon)
-                        .font(.caption)
+                    // UPDATED: Professional square/triangle icons instead of emoji
+                    Image(systemName: validityStatus == .expired ? "xmark.square.fill" : validityStatus == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
+                        .font(.title3)
+                        .foregroundColor(validityStatus.color)
+
                     Text(validityStatus.description)
                         .font(.caption2)
                         .fontWeight(.medium)
@@ -752,69 +763,6 @@ struct EnhancedSavedPassportRow: View {
             }
         }
         .padding(.vertical, 2) // Reduced padding for tighter rows
-        .contentShape(Rectangle())
-        .task {
-            if let passportId = passport.id {
-                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
-            }
-        }
-    }
-}
-
-// Keep the original SavedPassportRow for backward compatibility
-struct SavedPassportRow: View {
-    let passport: SavedPassport
-    @State private var photo: UIImage?
-    
-    var body: some View {
-        HStack {
-            if let photo = photo {
-                Image(uiImage: photo)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 40, height: 50)
-                    .clipped()
-                    .cornerRadius(4)
-            } else {
-                Rectangle()
-                    .fill(Color(.systemGray5))
-                    .frame(width: 40, height: 50)
-                    .cornerRadius(4)
-                    .overlay(
-                        Image(systemName: "person.crop.rectangle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(passport.fullName ?? "Unknown")
-                    .font(.headline)
-                    .lineLimit(1)
-                
-                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Text("Doc: \(passport.documentNumber ?? "Unknown")")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                if passport.isAuthenticated {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
-                }
-                
-                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .task {
             if let passportId = passport.id {
@@ -1016,14 +964,17 @@ struct SavedPassportResultsView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20) // Replaces navigation spacing
+                .padding(.top, 20)
+
                 
-                // Always show Expiry Banner for any status
+                // Always show Expiry Banner for any status - UPDATED ICONS
                 let expiryDateString = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                 if let expiryDate = parseExpiryDate(expiryDateString) {
                     let status = checkPassportValidity(expiryDate: expiryDate)
                     HStack {
-                        Image(systemName: status == .expired ? "exclamationmark.triangle.fill" : status == .expiresSoon ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                        // UPDATED: Professional icons instead of emoji
+                        Image(systemName: status == .expired ? "xmark.square.fill" : status == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
+                            .font(.title2)
                             .foregroundColor(status.color)
                         
                         VStack(alignment: .leading) {
@@ -1173,3 +1124,104 @@ struct SavedPassportResultsView: View {
         }
     }
 }
+
+#Preview {
+    ResultsView(
+        passportData: PassportData(
+            mrzData: MRZData(
+                documentNumber: "123456789",
+                dateOfBirth: "900101",
+                expiryDate: "300101",
+                rawMRZ: "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+                documentType: "P",
+                issuingCountry: "UTO",
+                nationality: "UTO",
+                sex: "F"
+            ),
+            personalDetails: PersonalDetails(
+                fullName: "Anna Maria Eriksson",
+                surname: "Eriksson",
+                givenNames: "Anna Maria",
+                nationality: "UTO",
+                dateOfBirth: "01/01/1990",
+                placeOfBirth: nil,
+                sex: "F",
+                documentNumber: "L898902C3",
+                documentType: "P",
+                issuingCountry: "UTO",
+                expiryDate: "01/01/2030"
+            ),
+            photo: nil,
+            additionalInfo: [:],
+            chipAuthSuccess: true,
+            bacSuccess: true,
+            readingErrors: []
+        ),
+        onScanAnother: {},
+        onHome: {}
+    )
+}
+
+// Keep the original SavedPassportRow for backward compatibility
+struct SavedPassportRow: View {
+    let passport: SavedPassport
+    @State private var photo: UIImage?
+    
+    var body: some View {
+        HStack {
+            if let photo = photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 50)
+                    .clipped()
+                    .cornerRadius(4)
+            } else {
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .frame(width: 40, height: 50)
+                    .cornerRadius(4)
+                    .overlay(
+                        Image(systemName: "person.crop.rectangle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    )
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(passport.fullName ?? "Unknown")
+                    .font(.headline)
+                    .lineLimit(1)
+                
+                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("Doc: \(passport.documentNumber ?? "Unknown")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                if passport.isAuthenticated {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                }
+                
+                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .task {
+            if let passportId = passport.id {
+                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
+            }
+        }
+    }
+}
+    
