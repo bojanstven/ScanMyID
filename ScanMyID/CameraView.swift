@@ -55,7 +55,7 @@ struct CameraView: View {
                         .fill(Color.black.opacity(0.65))
                 )
                 .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                .padding(.bottom, 100)
             }
         }
     }

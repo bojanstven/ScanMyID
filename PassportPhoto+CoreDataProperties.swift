@@ -25,3 +25,8 @@ extension PassportPhoto {
 extension PassportPhoto : Identifiable {
 
 }
+
+extension SavedPassport {
+    @NSManaged public var isPinned: Bool
+    @NSManaged public var pinnedDate: Date?
+}

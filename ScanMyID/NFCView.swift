@@ -262,87 +262,87 @@ struct NFCView: View {
     }
     
     var body: some View {
-        VStack(spacing: 40) {
-            Spacer()
-            
-            // MARK: - NEW STATIC NFC Section (The Solution)
-
-            
-            VStack(spacing: 30) {
-                // Static NFC icon
-                Image(systemName: "wave.3.up.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(colorForState)
+        ScrollView {
+            VStack(spacing: 40) {
+                Spacer()
+                    .frame(height: 100)
                 
-            }
-
-            
-            // Status and Progress
-            VStack(spacing: 16) {
-                Text(statusMessage)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(readingState == .failed ? .red : .primary)
-                    .padding(.horizontal, 20)
-                
-                if readingState != .ready && readingState != .failed && readingState != .completed {
-                    ProgressView(value: progressValue, total: 1.0)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .frame(height: 8)
-                        .scaleEffect(y: 2)
-                        .animation(.easeInOut(duration: 0.3), value: progressValue)
+                VStack(spacing: 30) {
+                    // Static NFC icon
+                    Image(systemName: "wave.3.up.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(colorForState)
                 }
                 
-                if let error = errorMessage {
-                    Text(error)
-                        .font(.body)
-                        .foregroundColor(.red)
+                // Status and Progress
+                VStack(spacing: 16) {
+                    Text(statusMessage)
+                        .font(.title2)
+                        .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
+                        .foregroundColor(readingState == .failed ? .red : .primary)
                         .padding(.horizontal, 20)
-                }
-            }
-            
-            Spacer()
-            
-            // Action Buttons
-            VStack(spacing: 16) {
-                if readingState == .ready || readingState == .failed {
-                    Button(action: startNFCReading) {
-                        HStack {
-                            Image(systemName: "wave.3.right")
-                            Text(readingState == .failed ? "Try Again" : "Start NFC Reading")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                    
+                    if readingState != .ready && readingState != .failed && readingState != .completed {
+                        ProgressView(value: progressValue, total: 1.0)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .frame(height: 8)
+                            .scaleEffect(y: 2)
+                            .animation(.easeInOut(duration: 0.3), value: progressValue)
+                    }
+                    
+                    if let error = errorMessage {
+                        Text(error)
+                            .font(.body)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
                     }
                 }
                 
-                if readingState == .completed && passportData != nil {
-                    Button(action: {
-                        if let data = passportData {
-                            onComplete(data)
+                Spacer()
+                    .frame(height: 100)
+                
+                // Action Buttons
+                VStack(spacing: 16) {
+                    if readingState == .ready || readingState == .failed {
+                        Button(action: startNFCReading) {
+                            HStack {
+                                Image(systemName: "wave.3.right")
+                                Text(readingState == .failed ? "Try Again" : "Start NFC Reading")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.blue)
+                            .cornerRadius(12)
                         }
-                    }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle")
-                            Text("View Results")
+                    }
+                    
+                    if readingState == .completed && passportData != nil {
+                        Button(action: {
+                            if let data = passportData {
+                                onComplete(data)
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle")
+                                Text("View Results")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.green)
+                            .cornerRadius(12)
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.green)
-                        .cornerRadius(12)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 30) // ← Fixed padding for tab bar
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 40)
+            .frame(minHeight: UIScreen.main.bounds.height)
         }
         .background(Color(.systemBackground))
         .onAppear {

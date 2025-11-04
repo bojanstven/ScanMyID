@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24299" systemVersion="25B77" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
     <entity name="PassportPhoto" representedClassName="PassportPhoto" syncable="YES">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="imageData" optional="YES" attributeType="Binary"/>
@@ -14,8 +14,10 @@
         <attribute name="fullName" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="isAuthenticated" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isPinned" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="nationality" optional="YES" attributeType="String"/>
         <attribute name="personalDetailsJSON" optional="YES" attributeType="String"/>
+        <attribute name="pinnedDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="rawMRZ" optional="YES" attributeType="String"/>
         <attribute name="readingErrorsJSON" optional="YES" attributeType="String"/>
         <attribute name="scanDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>

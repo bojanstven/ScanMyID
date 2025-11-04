@@ -27,45 +27,37 @@ struct ContentView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Home Tab (Your Welcome Screen)
-            WelcomeView(
-                onScanTapped: {
-                    selectedTab = 1 // Switch to Scan tab
-                    scanFlowState = .camera // Reset to camera
-                }
-            )
-            .tabItem {
-                Image(systemName: "house.fill")
-                Text("Home")
+            // Home Tab
+            Tab("Home", systemImage: "house.fill", value: 0) {
+                WelcomeView(
+                    onScanTapped: {
+                        selectedTab = 1
+                        scanFlowState = .camera
+                    }
+                )
             }
-            .tag(0)
             
-            // Scan Tab (Complete Flow: Camera -> NFC -> Results)
-            ScanFlowView(
-                scannedMRZ: $scannedMRZ,
-                passportData: $passportData,
-                scanFlowState: $scanFlowState,
-                onHome: {
-                    selectedTab = 0 // Return to Home
-                    resetScanData()
-                }
-            )
-            .tabItem {
-                Image(systemName: "camera.fill")
-                Text("Scan")
+            // Scan Tab - FULL SCREEN CAMERA
+            Tab("Scan", systemImage: "camera.fill", value: 1) {
+                ScanFlowView(
+                    scannedMRZ: $scannedMRZ,
+                    passportData: $passportData,
+                    scanFlowState: $scanFlowState,
+                    onHome: {
+                        selectedTab = 0
+                        resetScanData()
+                    }
+                )
+                .ignoresSafeArea() // ← Camera goes edge-to-edge
             }
-            .tag(1)
             
             // History Tab
-            SavedScansView(onDismiss: {
-                // For TabView, we don't dismiss, just stay in tab
-            })
-            .tabItem {
-                Image(systemName: "list.clipboard.fill")
-                Text("History")
+            Tab("History", systemImage: "list.clipboard.fill", value: 2) {
+                SavedScansView(onDismiss: {})
             }
-            .tag(2)
         }
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .environment(\.managedObjectContext, CoreDataManager.shared.context)
     }
     

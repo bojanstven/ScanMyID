@@ -255,6 +255,10 @@ struct ResultsView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 30) // spacing above bubble tab bar
+                }
+
                 
                 Spacer(minLength: 40)
             }
@@ -546,9 +550,23 @@ struct SavedScansView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)],
-        animation: .default
+        sortDescriptors: [
+            NSSortDescriptor(keyPath: \SavedPassport.isPinned, ascending: false),
+            NSSortDescriptor(keyPath: \SavedPassport.pinnedDate, ascending: false),
+            NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)
+        ],
+        animation: .none  // ← NO animation, instant like Notes
     ) private var savedPassports: FetchedResults<SavedPassport>
+    
+    var sortedPassports: [SavedPassport] {
+        let pinned = savedPassports.filter { $0.isPinned }
+            .sorted { ($0.pinnedDate ?? Date.distantPast) > ($1.pinnedDate ?? Date.distantPast) }
+        
+        let unpinned = savedPassports.filter { !$0.isPinned }
+            .sorted { ($0.scanDate ?? Date.distantPast) > ($1.scanDate ?? Date.distantPast) }
+        
+        return pinned + unpinned
+    }
     
     let onDismiss: () -> Void
     @State private var selectedPassportID: NSManagedObjectID?
@@ -556,7 +574,7 @@ struct SavedScansView: View {
     @State private var isClearing = false
     @State private var contextInitialized = false
     @State private var showingClearConfirmation = false
-
+    
     
     var body: some View {
         NavigationView {
@@ -577,16 +595,54 @@ struct SavedScansView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                 } else {
-                    ForEach(savedPassports, id: \.objectID) { passport in
-                        EnhancedSavedPassportRow(passport: passport)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                handlePassportTap(passport)
+                    let pinnedItems = sortedPassports.filter { $0.isPinned }
+                    let unpinnedItems = sortedPassports.filter { !$0.isPinned }
+                    
+                    // Pinned Section
+                    if !pinnedItems.isEmpty {
+                        Section(header: Text("PINNED").font(.caption).foregroundColor(.secondary)) {
+                            ForEach(pinnedItems, id: \.objectID) { passport in
+                                EnhancedSavedPassportRow(passport: passport)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        handlePassportTap(passport)
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            togglePin(for: passport)
+                                        } label: {
+                                            Label("Unpin", systemImage: "pin.slash.fill")
+                                        }
+                                        .tint(.gray)
+                                    }
                             }
+                        }
                     }
-                    .onDelete(perform: deletePassports)
+                    
+                    // Unpinned Section
+                    if !unpinnedItems.isEmpty {
+                        Section(header: unpinnedItems.isEmpty ? nil : Text("SCANS").font(.caption).foregroundColor(.secondary)) {
+                            ForEach(unpinnedItems, id: \.objectID) { passport in
+                                EnhancedSavedPassportRow(passport: passport)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        handlePassportTap(passport)
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            togglePin(for: passport)
+                                        } label: {
+                                            Label("Pin", systemImage: "pin.fill")
+                                        }
+                                        .tint(.orange)
+                                    }
+                            }
+                            .onDelete(perform: deletePassports)
+                        }
+                    }
                 }
             }
+
             .navigationTitle("Saved Scans (\(savedPassports.count))")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -599,7 +655,7 @@ struct SavedScansView: View {
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
-
+        
         .sheet(isPresented: $showingFullResults) {
             if let selectedPassportID = selectedPassportID {
                 FixedPassportResultsView(
@@ -659,8 +715,10 @@ struct SavedScansView: View {
     }
     
     private func deletePassports(offsets: IndexSet) {
-        for index in offsets {
-            let passport = savedPassports[index]
+        // Map offsets to actual passport objects from sortedPassports
+        let passportsToDelete = offsets.map { sortedPassports[$0] }
+        
+        for passport in passportsToDelete {
             Task {
                 await CoreDataManager.shared.deletePassport(passport)
             }
@@ -677,7 +735,32 @@ struct SavedScansView: View {
             }
         }
     }
+    
+    private func togglePin(for passport: SavedPassport) {
+        if passport.isPinned {
+            // Unpinning - clear pinnedDate to restore original position
+            passport.isPinned = false
+            passport.pinnedDate = nil
+        } else {
+            // Pinning - set pinnedDate to NOW (newest pins at top)
+            passport.isPinned = true
+            passport.pinnedDate = Date()
+        }
+        
+        do {
+            try viewContext.save()
+            
+            let feedback = UIImpactFeedbackGenerator(style: .medium)
+            feedback.impactOccurred()
+            
+            print("📌 Passport \(passport.isPinned ? "pinned" : "unpinned"): \(passport.fullName ?? "Unknown")")
+        } catch {
+            print("❌ Failed to toggle pin: \(error)")
+        }
+    }
 }
+
+
 
 // MARK: - Enhanced Saved Passport Row with Expiry Focus and UPDATED ICONS
 
@@ -702,19 +785,19 @@ struct EnhancedSavedPassportRow: View {
     }
     
     var body: some View {
-        HStack(spacing: 8) { // Reduced spacing for bigger content
-            // Photo - reduced margin for bigger size
+        HStack(spacing: 8) {
+            // Photo (keep as-is, no ZStack needed)
             if let photo = photo {
                 Image(uiImage: photo)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 44, height: 54) // Slightly bigger
+                    .frame(width: 44, height: 54)
                     .clipped()
                     .cornerRadius(4)
             } else {
                 Rectangle()
                     .fill(Color(.systemGray5))
-                    .frame(width: 44, height: 54) // Slightly bigger
+                    .frame(width: 44, height: 54)
                     .cornerRadius(4)
                     .overlay(
                         Image(systemName: "person.crop.rectangle")
@@ -723,8 +806,8 @@ struct EnhancedSavedPassportRow: View {
                     )
             }
             
-            // Text content - restored original positioning
-            VStack(alignment: .leading, spacing: 2) { // Reduced spacing
+            // Text content (unchanged)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(passport.fullName ?? "Unknown")
                     .font(.headline)
                     .lineLimit(1)
@@ -736,20 +819,17 @@ struct EnhancedSavedPassportRow: View {
                 Text("Doc: \(passport.documentNumber ?? "Unknown")")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
-                // Removed scan date - confusing and not useful
             }
             
             Spacer()
             
-            // Right side: Show expiry status with professional icons
+            // Right side (unchanged)
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 4) {
-                    // UPDATED: Professional square/triangle icons instead of emoji
                     Image(systemName: validityStatus == .expired ? "xmark.square.fill" : validityStatus == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
                         .font(.title3)
                         .foregroundColor(validityStatus.color)
-
+                    
                     Text(validityStatus.description)
                         .font(.caption2)
                         .fontWeight(.medium)
@@ -762,7 +842,7 @@ struct EnhancedSavedPassportRow: View {
                     .multilineTextAlignment(.trailing)
             }
         }
-        .padding(.vertical, 2) // Reduced padding for tighter rows
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
         .task {
             if let passportId = passport.id {
@@ -1161,67 +1241,3 @@ struct SavedPassportResultsView: View {
         onHome: {}
     )
 }
-
-// Keep the original SavedPassportRow for backward compatibility
-struct SavedPassportRow: View {
-    let passport: SavedPassport
-    @State private var photo: UIImage?
-    
-    var body: some View {
-        HStack {
-            if let photo = photo {
-                Image(uiImage: photo)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 40, height: 50)
-                    .clipped()
-                    .cornerRadius(4)
-            } else {
-                Rectangle()
-                    .fill(Color(.systemGray5))
-                    .frame(width: 40, height: 50)
-                    .cornerRadius(4)
-                    .overlay(
-                        Image(systemName: "person.crop.rectangle")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(passport.fullName ?? "Unknown")
-                    .font(.headline)
-                    .lineLimit(1)
-                
-                Text(CountryFlags.flagWithCode(passport.nationality ?? "Unknown"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Text("Doc: \(passport.documentNumber ?? "Unknown")")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                if passport.isAuthenticated {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
-                }
-                
-                Text(DateFormatter.shortDate.string(from: passport.scanDate ?? Date()))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .task {
-            if let passportId = passport.id {
-                photo = await CoreDataManager.shared.loadPhoto(for: passportId)
-            }
-        }
-    }
-}
-    
