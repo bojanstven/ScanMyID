@@ -340,7 +340,9 @@ struct NFCView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 30) // ← Fixed padding for tab bar
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: 30)
+                }
             }
             .frame(minHeight: UIScreen.main.bounds.height)
         }

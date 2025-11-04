@@ -1,0 +1,16 @@
+{
+  "id": "bean",
+  "fullName": "Mr Bean",
+  "givenNames": "MR",
+  "surname": "BEAN",
+  "nationality": "GBR",
+  "dateOfBirth": "550106",
+  "sex": "M",
+  "documentNumber": "023477812",
+  "documentType": "P",
+  "issuingCountry": "GBR",
+  "expiryDate": "060920",
+  "placeOfBirth": "ENFIELD",
+  "photoFilename": "bean.jpg",
+  "rawMRZ": "P<GBRBEAN<<MR<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<20234778126GBR550106M0609200<<<<<<<<<<<<<<<2<"
+}

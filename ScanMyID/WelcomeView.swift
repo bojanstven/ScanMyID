@@ -98,7 +98,10 @@ struct WelcomeView: View {
             
             // Single Action Button (History button removed)
             Button(action: onScanTapped) {
-                Text("Scan Document")
+                HStack {
+                    Image(systemName: "camera.fill")
+                    Text("Scan Document")
+                }
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

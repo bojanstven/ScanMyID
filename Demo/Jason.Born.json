@@ -1,0 +1,16 @@
+{
+  "id": "bourne_jason",
+  "fullName": "Jason Bourne",
+  "givenNames": "Jason",
+  "surname": "Bourne",
+  "nationality": "USA",
+  "dateOfBirth": "690821",
+  "sex": "M",
+  "documentNumber": "700140916",
+  "documentType": "P",
+  "issuingCountry": "USA",
+  "expiryDate": "110417",
+  "placeOfBirth": "New York",
+  "photoFilename": "bourne.jpg",
+  "rawMRZ": "P<USABOURNE<<JASON<<<<<<<<<<<<<<<<<<70014091<6USA690821M1104178<<<<<<<<<<08"
+}

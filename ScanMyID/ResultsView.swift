@@ -613,15 +613,18 @@ struct SavedScansView: View {
                                         } label: {
                                             Label("Unpin", systemImage: "pin.slash.fill")
                                         }
-                                        .tint(.gray)
+                                        .tint(.orange)
                                     }
+                            }
+                            .onDelete { offsets in
+                                deletePinnedPassports(at: offsets, from: pinnedItems)
                             }
                         }
                     }
                     
                     // Unpinned Section
                     if !unpinnedItems.isEmpty {
-                        Section(header: unpinnedItems.isEmpty ? nil : Text("SCANS").font(.caption).foregroundColor(.secondary)) {
+                        Section(header: Text("SCANS").font(.caption).foregroundColor(.secondary)) {
                             ForEach(unpinnedItems, id: \.objectID) { passport in
                                 EnhancedSavedPassportRow(passport: passport)
                                     .contentShape(Rectangle())
@@ -637,7 +640,9 @@ struct SavedScansView: View {
                                         .tint(.orange)
                                     }
                             }
-                            .onDelete(perform: deletePassports)
+                            .onDelete { offsets in
+                                deleteUnpinnedPassports(at: offsets, from: unpinnedItems)
+                            }
                         }
                     }
                 }
@@ -714,9 +719,18 @@ struct SavedScansView: View {
         showingFullResults = true
     }
     
-    private func deletePassports(offsets: IndexSet) {
-        // Map offsets to actual passport objects from sortedPassports
-        let passportsToDelete = offsets.map { sortedPassports[$0] }
+    private func deletePinnedPassports(at offsets: IndexSet, from pinnedItems: [SavedPassport]) {
+        let passportsToDelete = offsets.map { pinnedItems[$0] }
+        
+        for passport in passportsToDelete {
+            Task {
+                await CoreDataManager.shared.deletePassport(passport)
+            }
+        }
+    }
+
+    private func deleteUnpinnedPassports(at offsets: IndexSet, from unpinnedItems: [SavedPassport]) {
+        let passportsToDelete = offsets.map { unpinnedItems[$0] }
         
         for passport in passportsToDelete {
             Task {
