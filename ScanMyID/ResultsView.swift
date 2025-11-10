@@ -256,9 +256,8 @@ struct ResultsView: View {
                 }
                 .padding(.horizontal, 20)
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear.frame(height: 30) // spacing above bubble tab bar
+                    Color.clear.frame(height: 30)
                 }
-
                 
                 Spacer(minLength: 40)
             }
@@ -300,11 +299,9 @@ struct ResultsView: View {
                 if success {
                     showingSaveSuccess = true
                     
-                    // Haptic feedback
                     let successFeedback = UINotificationFeedbackGenerator()
                     successFeedback.notificationOccurred(.success)
                 } else {
-                    // Handle error - could show error alert
                     print("❌ Failed to save passport data")
                 }
             }
@@ -312,7 +309,7 @@ struct ResultsView: View {
     }
 }
 
-// MARK: - Crypto Authentication Overlay Component
+// MARK: - Supporting Views
 
 struct CryptoAuthOverlay: View {
     let passportData: PassportData
@@ -335,14 +332,12 @@ struct CryptoAuthOverlay: View {
     }
 }
 
-// MARK: - Enhanced Expiry Date Row with New Formatting and UPDATED ICONS
-
 struct EnhancedExpiryDateRow: View {
     let expiryDateString: String
     
     private var validityStatus: PassportValidityStatus {
         guard let expiryDate = parseExpiryDate(expiryDateString) else {
-            return .expired // If we can't parse, assume expired
+            return .expired
         }
         return checkPassportValidity(expiryDate: expiryDate)
     }
@@ -356,14 +351,12 @@ struct EnhancedExpiryDateRow: View {
     
     var body: some View {
         VStack(spacing: 1) {
-            // Main expiry date row - UPDATED ICON
             HStack {
                 Text("Expiry Date")
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 
                 HStack(spacing: 4) {
-                    // UPDATED: Professional square icons instead of emoji
                     Image(systemName: validityStatus == .expired ? "xmark.square.fill" : validityStatus == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
                         .font(.body)
                         .foregroundColor(validityStatus.color)
@@ -378,7 +371,6 @@ struct EnhancedExpiryDateRow: View {
             .padding(.vertical, 12)
             .background(Color(.systemBackground))
             
-            // Enhanced validity status row with new time formatting
             HStack {
                 Text("Validity Status")
                     .foregroundColor(.secondary)
@@ -405,13 +397,12 @@ struct EnhancedExpiryDateRow: View {
     }
 }
 
-// Keep the original ExpiryDateRow for backward compatibility
 struct ExpiryDateRow: View {
     let expiryDateString: String
     
     private var validityStatus: PassportValidityStatus {
         guard let expiryDate = parseExpiryDate(expiryDateString) else {
-            return .expired // If we can't parse, assume expired
+            return .expired
         }
         return checkPassportValidity(expiryDate: expiryDate)
     }
@@ -423,7 +414,6 @@ struct ExpiryDateRow: View {
     
     var body: some View {
         VStack(spacing: 1) {
-            // Main expiry date row
             HStack {
                 Text("Expiry Date")
                     .foregroundColor(.secondary)
@@ -441,7 +431,6 @@ struct ExpiryDateRow: View {
             .padding(.vertical, 12)
             .background(Color(.systemBackground))
             
-            // Validity status row
             HStack {
                 Text("Validity Status")
                     .foregroundColor(.secondary)
@@ -520,15 +509,14 @@ struct PhotoFullScreenView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // Dynamic background based on color scheme
                 (colorScheme == .dark ? Color.black : Color.white)
                     .ignoresSafeArea()
                 
                 Image(uiImage: photo)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .padding(.horizontal, 8) // Minimal horizontal padding
-                    .padding(.vertical, 0)   // No vertical padding for edge-to-edge
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 0)
             }
             .navigationTitle("Biometric Photo")
             .navigationBarTitleDisplayMode(.inline)
@@ -544,7 +532,49 @@ struct PhotoFullScreenView: View {
     }
 }
 
-// MARK: - Enhanced SavedScansView with Fixed Clear Button and Expiry Focus
+// MARK: - Sort Enums (MUST BE AT FILE SCOPE)
+
+enum SortCategory: String, CaseIterable, Codable {
+    case scanDate = "Scan Date"
+    case expiryDate = "Expiry Date"
+    case name = "Name"
+    case surname = "Surname"
+}
+
+enum RefineSortOption: String, Codable {
+    case newestFirst = "Newest First"
+    case oldestFirst = "Oldest First"
+    case soonestFirst = "Soonest First"
+    case latestFirst = "Latest First"
+    case aToZ = "A to Z"
+    case zToA = "Z to A"
+}
+
+extension SortCategory {
+    var refineOptions: [RefineSortOption] {
+        switch self {
+        case .scanDate:
+            return [.newestFirst, .oldestFirst]
+        case .expiryDate:
+            return [.soonestFirst, .latestFirst]
+        case .name, .surname:
+            return [.aToZ, .zToA]
+        }
+    }
+    
+    var defaultRefineOption: RefineSortOption {
+        switch self {
+        case .scanDate:
+            return .newestFirst
+        case .expiryDate:
+            return .soonestFirst
+        case .name, .surname:
+            return .aToZ
+        }
+    }
+}
+
+// MARK: - SavedScansView
 
 struct SavedScansView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -555,18 +585,8 @@ struct SavedScansView: View {
             NSSortDescriptor(keyPath: \SavedPassport.pinnedDate, ascending: false),
             NSSortDescriptor(keyPath: \SavedPassport.scanDate, ascending: false)
         ],
-        animation: .none  // ← NO animation, instant like Notes
+        animation: .none
     ) private var savedPassports: FetchedResults<SavedPassport>
-    
-    var sortedPassports: [SavedPassport] {
-        let pinned = savedPassports.filter { $0.isPinned }
-            .sorted { ($0.pinnedDate ?? Date.distantPast) > ($1.pinnedDate ?? Date.distantPast) }
-        
-        let unpinned = savedPassports.filter { !$0.isPinned }
-            .sorted { ($0.scanDate ?? Date.distantPast) > ($1.scanDate ?? Date.distantPast) }
-        
-        return pinned + unpinned
-    }
     
     let onDismiss: () -> Void
     @State private var selectedPassportID: NSManagedObjectID?
@@ -574,7 +594,85 @@ struct SavedScansView: View {
     @State private var isClearing = false
     @State private var contextInitialized = false
     @State private var showingClearConfirmation = false
+    @AppStorage("savedScans.sortCategory") private var sortCategoryRaw: String = SortCategory.scanDate.rawValue
+    @AppStorage("savedScans.refineSort") private var refineSortRaw: String = RefineSortOption.newestFirst.rawValue
     
+    private var sortCategory: SortCategory {
+        SortCategory(rawValue: sortCategoryRaw) ?? .scanDate
+    }
+    
+    private var refineSort: RefineSortOption {
+        RefineSortOption(rawValue: refineSortRaw) ?? .newestFirst
+    }
+    
+    var sortedPassports: [SavedPassport] {
+        let pinned = savedPassports.filter { $0.isPinned }
+        let unpinned = savedPassports.filter { !$0.isPinned }
+        
+        let sortedPinned = applySorting(to: pinned)
+        let sortedUnpinned = applySorting(to: unpinned)
+        
+        return sortedPinned + sortedUnpinned
+    }
+    
+    private func applySorting(to passports: [SavedPassport]) -> [SavedPassport] {
+        switch sortCategory {
+        case .scanDate:
+            if refineSort == .oldestFirst {
+                return passports.sorted { ($0.scanDate ?? Date.distantPast) < ($1.scanDate ?? Date.distantPast) }
+            } else {
+                return passports.sorted { ($0.scanDate ?? Date.distantPast) > ($1.scanDate ?? Date.distantPast) }
+            }
+            
+        case .expiryDate:
+            if refineSort == .latestFirst {
+                return passports.sorted { p1, p2 in
+                    guard let e1 = p1.expiryDate, let d1 = parseExpiryDate(e1),
+                          let e2 = p2.expiryDate, let d2 = parseExpiryDate(e2) else { return false }
+                    return d1 > d2
+                }
+            } else {
+                return passports.sorted { p1, p2 in
+                    guard let e1 = p1.expiryDate, let d1 = parseExpiryDate(e1),
+                          let e2 = p2.expiryDate, let d2 = parseExpiryDate(e2) else { return false }
+                    return d1 < d2
+                }
+            }
+            
+        case .name:
+            return passports.sorted { p1, p2 in
+                let n1 = extractGivenName(from: p1) ?? p1.fullName ?? ""
+                let n2 = extractGivenName(from: p2) ?? p2.fullName ?? ""
+                let cmp = n1.localizedCaseInsensitiveCompare(n2)
+                return refineSort == .zToA ? cmp == .orderedDescending : cmp == .orderedAscending
+            }
+            
+        case .surname:
+            return passports.sorted { p1, p2 in
+                let s1 = extractSurname(from: p1) ?? p1.fullName ?? ""
+                let s2 = extractSurname(from: p2) ?? p2.fullName ?? ""
+                let cmp = s1.localizedCaseInsensitiveCompare(s2)
+                return refineSort == .zToA ? cmp == .orderedDescending : cmp == .orderedAscending
+            }
+        }
+    }
+    
+    private func extractGivenName(from passport: SavedPassport) -> String? {
+        guard let json = passport.personalDetailsJSON else { return nil }
+        return extractValue(from: json, key: "givenNames")
+    }
+    
+    private func extractSurname(from passport: SavedPassport) -> String? {
+        guard let json = passport.personalDetailsJSON else { return nil }
+        return extractValue(from: json, key: "surname")
+    }
+    
+    private func extractValue(from json: String, key: String) -> String? {
+        guard let range = json.range(of: "\"\(key)\":\"") else { return nil }
+        let after = json[range.upperBound...]
+        guard let end = after.range(of: "\"") else { return nil }
+        return String(after[..<end.lowerBound])
+    }
     
     var body: some View {
         NavigationView {
@@ -598,7 +696,6 @@ struct SavedScansView: View {
                     let pinnedItems = sortedPassports.filter { $0.isPinned }
                     let unpinnedItems = sortedPassports.filter { !$0.isPinned }
                     
-                    // Pinned Section
                     if !pinnedItems.isEmpty {
                         Section(header: Text("PINNED").font(.caption).foregroundColor(.secondary)) {
                             ForEach(pinnedItems, id: \.objectID) { passport in
@@ -622,7 +719,6 @@ struct SavedScansView: View {
                         }
                     }
                     
-                    // Unpinned Section
                     if !unpinnedItems.isEmpty {
                         Section(header: Text("SCANS").font(.caption).foregroundColor(.secondary)) {
                             ForEach(unpinnedItems, id: \.objectID) { passport in
@@ -647,7 +743,6 @@ struct SavedScansView: View {
                     }
                 }
             }
-
             .navigationTitle("Saved Scans (\(savedPassports.count))")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -657,10 +752,61 @@ struct SavedScansView: View {
                     .foregroundColor(.red)
                     .disabled(isClearing || savedPassports.isEmpty)
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        // Header with icon
+                        Label("Sort By", systemImage: "arrow.up.arrow.down")
+                        
+                        Divider()
+                        
+                        // Sort By options
+                        ForEach(SortCategory.allCases, id: \.self) { category in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    sortCategoryRaw = category.rawValue
+                                    refineSortRaw = category.defaultRefineOption.rawValue
+                                }
+                            } label: {
+                                HStack {
+                                    Text(category.rawValue)
+                                    if sortCategory == category {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Refine Sort header
+                        Text("Refine Sort")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // Refine Sort options
+                        ForEach(sortCategory.refineOptions, id: \.self) { option in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    refineSortRaw = option.rawValue
+                                }
+                            } label: {
+                                HStack {
+                                    Text(option.rawValue)
+                                    if refineSort == option {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .disabled(savedPassports.isEmpty)
+                }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
-        
         .sheet(isPresented: $showingFullResults) {
             if let selectedPassportID = selectedPassportID {
                 FixedPassportResultsView(
@@ -752,11 +898,9 @@ struct SavedScansView: View {
     
     private func togglePin(for passport: SavedPassport) {
         if passport.isPinned {
-            // Unpinning - clear pinnedDate to restore original position
             passport.isPinned = false
             passport.pinnedDate = nil
         } else {
-            // Pinning - set pinnedDate to NOW (newest pins at top)
             passport.isPinned = true
             passport.pinnedDate = Date()
         }
@@ -773,10 +917,6 @@ struct SavedScansView: View {
         }
     }
 }
-
-
-
-// MARK: - Enhanced Saved Passport Row with Expiry Focus and UPDATED ICONS
 
 struct EnhancedSavedPassportRow: View {
     let passport: SavedPassport
@@ -800,7 +940,6 @@ struct EnhancedSavedPassportRow: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            // Photo (keep as-is, no ZStack needed)
             if let photo = photo {
                 Image(uiImage: photo)
                     .resizable()
@@ -820,7 +959,6 @@ struct EnhancedSavedPassportRow: View {
                     )
             }
             
-            // Text content (unchanged)
             VStack(alignment: .leading, spacing: 2) {
                 Text(passport.fullName ?? "Unknown")
                     .font(.headline)
@@ -837,7 +975,6 @@ struct EnhancedSavedPassportRow: View {
             
             Spacer()
             
-            // Right side (unchanged)
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 4) {
                     Image(systemName: validityStatus == .expired ? "xmark.square.fill" : validityStatus == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
@@ -958,7 +1095,6 @@ struct FixedPassportResultsView: View {
                     return
                 }
                 
-                // Force all relationships to load
                 _ = passport.fullName
                 _ = passport.personalDetailsJSON
                 _ = passport.additionalInfoJSON
@@ -1002,7 +1138,6 @@ struct SavedPassportResultsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Header - right-aligned photo with auth overlay
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Saved Scan")
@@ -1020,7 +1155,6 @@ struct SavedPassportResultsView: View {
                     
                     Spacer()
                     
-                    // Photo section with auth overlay - right aligned to screen edge
                     ZStack(alignment: .bottomLeading) {
                         if let photo = passportData.photo {
                             Button(action: { isPhotoFullScreen = true }) {
@@ -1036,7 +1170,6 @@ struct SavedPassportResultsView: View {
                                     )
                             }
                             
-                            // Authentication overlay - lower left corner
                             CryptoAuthOverlay(passportData: passportData)
                                 .offset(x: 4, y: -4)
                         } else {
@@ -1060,13 +1193,10 @@ struct SavedPassportResultsView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
 
-                
-                // Always show Expiry Banner for any status - UPDATED ICONS
                 let expiryDateString = passportData.personalDetails?.expiryDate ?? passportData.mrzData.expiryDate
                 if let expiryDate = parseExpiryDate(expiryDateString) {
                     let status = checkPassportValidity(expiryDate: expiryDate)
                     HStack {
-                        // UPDATED: Professional icons instead of emoji
                         Image(systemName: status == .expired ? "xmark.square.fill" : status == .expiresSoon ? "exclamationmark.triangle.fill" : "checkmark.square.fill")
                             .font(.title2)
                             .foregroundColor(status.color)
@@ -1089,7 +1219,6 @@ struct SavedPassportResultsView: View {
                     .padding(.horizontal, 20)
                 }
                 
-                // Personal Information
                 if let personalDetails = passportData.personalDetails {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Personal Information")
@@ -1114,7 +1243,6 @@ struct SavedPassportResultsView: View {
                     .padding(.horizontal, 20)
                 }
                 
-                // Document Information
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Document Information")
                         .font(.headline)
@@ -1134,7 +1262,6 @@ struct SavedPassportResultsView: View {
                 }
                 .padding(.horizontal, 20)
                 
-                // Additional Information (if available)
                 if !passportData.additionalInfo.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Additional Information")
@@ -1152,7 +1279,6 @@ struct SavedPassportResultsView: View {
                     .padding(.horizontal, 20)
                 }
                 
-                // Security Information
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Security & Verification")
                         .font(.headline)
@@ -1175,7 +1301,6 @@ struct SavedPassportResultsView: View {
                 }
                 .padding(.horizontal, 20)
                 
-                // MRZ Data (Technical)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Technical Data")

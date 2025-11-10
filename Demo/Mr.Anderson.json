@@ -1,0 +1,16 @@
+{
+  "id": "anderson",
+  "fullName": "Thomas A. Anderson",
+  "givenNames": "THOMAS A",
+  "surname": "ANDERSON",
+  "nationality": "USA",
+  "dateOfBirth": "710913",
+  "sex": "M",
+  "documentNumber": "142587963",
+  "documentType": "P",
+  "issuingCountry": "USA",
+  "expiryDate": "010911",
+  "placeOfBirth": "CAPITAL CITY",
+  "photoFilename": "anderson.jpg",
+  "rawMRZ": "P<USAANDERSON<<THOMAS<A<<<<<<<<<<<<<<<<<<<<<1425879639USA7109131M0109110<<<<<<<<<<<<<<<4<"
+}
